@@ -1,12 +1,15 @@
-const STATIC_CACHE = 'budget-tracker-static-v2';
+const STATIC_CACHE = 'budget-tracker-static-v3';
 
 const STATIC_ASSETS = [
   './',
   './index.html',
+  './dashboard.html',
   './login.html',
+  './styles.css',
   './assets/css/styles.css',
   './assets/js/app.js',
   './assets/js/auth.js',
+  './assets/js/dashboard.js',
   './assets/js/cache-registration.js',
   './assets/js/firebase-config.js'
 ];
@@ -51,16 +54,12 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-
-      return fetch(request).then((networkResponse) => {
+    fetch(request)
+      .then((networkResponse) => {
         const responseClone = networkResponse.clone();
         caches.open(STATIC_CACHE).then((cache) => cache.put(request, responseClone));
         return networkResponse;
-      });
-    })
+      })
+      .catch(() => caches.match(request))
   );
 });

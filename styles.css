@@ -34,6 +34,35 @@ header h1 {
   font-family: 'Margarine';
 }
 
+.header-actions {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+#user-email {
+  font-size: 0.9rem;
+  color: #4b5563;
+  font-weight: 600;
+}
+
+.page-message {
+  min-height: 20px;
+  text-align: center;
+  font-size: 0.9rem;
+  color: #4b5563;
+}
+
+.page-message.error {
+  color: #dc2626;
+}
+
+.page-message.success {
+  color: #16a34a;
+}
+
 /* ── Tabs ── */
 .tab-row {
   display: flex;

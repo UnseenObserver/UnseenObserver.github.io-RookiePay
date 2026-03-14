@@ -138,7 +138,7 @@ async function createAccount(form) {
   await batch.commit();
 
   setAuthMessage(form, 'Account created. Redirecting...', 'success');
-  window.location.href = 'index.html';
+  window.location.href = 'dashboard.html';
 }
 
 async function signIn(form) {
@@ -148,7 +148,7 @@ async function signIn(form) {
   isAuthFlowInProgress = true;
   await signInWithEmailAndPassword(auth, email, password);
   setAuthMessage(form, 'Login successful. Redirecting...', 'success');
-  window.location.href = 'index.html';
+  window.location.href = 'dashboard.html';
 }
 
 async function handleFormSubmit(event) {
@@ -204,6 +204,6 @@ forgotPasswordLink.addEventListener('click', handleForgotPassword);
 
 onAuthStateChanged(auth, (user) => {
   if (user && !isAuthFlowInProgress) {
-    window.location.replace('index.html');
+    window.location.replace('dashboard.html');
   }
 });
