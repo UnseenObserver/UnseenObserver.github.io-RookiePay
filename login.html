@@ -116,7 +116,7 @@
     import {
       doc,
       serverTimestamp,
-      setDoc
+      writeBatch
     } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
 
     const authTabs = document.querySelectorAll('.auth-tab');
@@ -124,6 +124,7 @@
     const authForms = document.querySelectorAll('.auth-form');
     const forgotPasswordLink = document.getElementById('forgot-password-link');
     const loginEmailInput = document.getElementById('login-email');
+    let isAuthFlowInProgress = false;
 
     authTabs.forEach((tab) => {
       tab.addEventListener('click', () => {
@@ -144,7 +145,7 @@
     });
 
     onAuthStateChanged(auth, (user) => {
-      if (user) {
+      if (user && !isAuthFlowInProgress) {
         window.location.replace('index.html');
       }
     });
@@ -183,6 +184,14 @@
 
       if (code === 'auth/too-many-requests') {
         return 'Too many attempts. Please wait a moment and try again.';
+      }
+
+      if (code === 'permission-denied') {
+        return 'Firestore write blocked by rules. Allow users to write users/{uid} when request.auth.uid == uid.';
+      }
+
+      if (code === 'unavailable') {
+        return 'Firestore is temporarily unavailable. Please retry in a moment.';
       }
 
       return error?.message || 'Authentication failed. Please try again.';
@@ -229,6 +238,8 @@
             return;
           }
 
+          isAuthFlowInProgress = true;
+
           const credential = await createUserWithEmailAndPassword(auth, email, password);
           const displayName = `${firstName} ${lastName}`.trim();
           const uid = credential.user.uid;
@@ -237,7 +248,9 @@
             await updateProfile(credential.user, { displayName });
           }
 
-          await setDoc(doc(db, 'users', uid), {
+          const batch = writeBatch(db);
+
+          batch.set(doc(db, 'users', uid), {
             uid,
             firstName,
             lastName,
@@ -247,9 +260,32 @@
             updatedAt: serverTimestamp()
           });
 
+          batch.set(doc(db, 'users', uid, 'Transactions', 'default'), {
+            amount: 0,
+            type: 'Expense',
+            createdAt: serverTimestamp()
+          });
+
+          batch.set(doc(db, 'users', uid, 'SplitRatio', 'default'), {
+            name: 'Default',
+            amount: 0,
+            type: 'Bill',
+            createdAt: serverTimestamp()
+          });
+
+          batch.set(doc(db, 'users', uid, 'Paychecks', 'default'), {
+            amount: 0,
+            type: 'Primary',
+            inputedAt: serverTimestamp()
+          });
+
+          await batch.commit();
+
           setAuthMessage(form, 'Account created. Redirecting...', 'success');
           window.location.href = 'index.html';
         } catch (error) {
+          console.error('Signup failed:', error);
+          isAuthFlowInProgress = false;
           const friendlyMessage = getFriendlyAuthMessage(error);
           setAuthMessage(form, friendlyMessage, 'error');
         }
