@@ -10,7 +10,7 @@ body {
   background: #f0f2f5;
   color: #333;
   min-height: 100vh;
-  padding: 24px 16px;
+  padding: 24px 8px;
 }
 
 a {
@@ -19,7 +19,7 @@ a {
 
 /* Layout */
 .container {
-  max-width: 860px;
+  max-width: 1100px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -321,6 +321,11 @@ header h1 {
   grid-template-columns: 1.1fr 0.9fr;
   gap: 28px;
   align-items: center;
+}
+
+.auth-shell.auth-shell-single {
+  max-width: 560px;
+  grid-template-columns: 1fr;
 }
 
 .auth-hero,

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MoneyFirst | Account</title>
+  <link href="https://fonts.googleapis.com/css2?family=Margarine&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-title">
+        <h1>MoneyFirst</h1>
+        <p class="subtitle">Account Settings</p>
+      </div>
+      <div class="header-tools">
+        <a class="btn-secondary" href="dashboard.html">Back to Dashboard</a>
+      </div>
+    </header>
+
+    <p class="page-message" id="page-message" aria-live="polite"></p>
+
+    <section class="form-section">
+      <h2>Your Profile</h2>
+      <form id="account-form">
+        <div class="form-row account-form-grid">
+          <div class="form-group">
+            <label for="first-name">First Name</label>
+            <input type="text" id="first-name" placeholder="First name" autocomplete="given-name" />
+          </div>
+          <div class="form-group">
+            <label for="last-name">Last Name</label>
+            <input type="text" id="last-name" placeholder="Last name" autocomplete="family-name" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" placeholder="username" autocomplete="username" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" placeholder="you@example.com" autocomplete="email" />
+          </div>
+        </div>
+
+        <div class="account-form-actions">
+          <button type="submit" class="btn-add" id="save-btn">Save Changes</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="form-section">
+      <h2>Password</h2>
+      <p class="account-section-description">A reset link will be sent to your registered email address.</p>
+      <div class="account-form-actions">
+        <button type="button" class="btn-secondary" id="reset-password-btn">Send Password Reset Email</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="assets/js/cache-registration.js"></script>
+  <script type="module" src="assets/js/account.js"></script>
+</body>
+</html>

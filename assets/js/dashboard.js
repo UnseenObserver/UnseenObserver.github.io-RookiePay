@@ -5,9 +5,10 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
+  getDocs,
   onSnapshot,
-  orderBy,
-  query,
+  setDoc,
   serverTimestamp,
   writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
@@ -24,25 +25,54 @@ const elements = {
   incomeFields: document.querySelector('.income-fields'),
   expenseFields: document.querySelector('.expense-fields'),
   balance: document.getElementById('balance'),
+  breakdownList: document.getElementById('breakdown-list'),
+  openPercentagesButton: document.getElementById('open-percentages'),
   descriptionSelect: document.getElementById('description-select'),
   customDescriptionGroup: document.getElementById('custom-description-group'),
   customDescriptionInput: document.getElementById('custom-description'),
-  userEmail: document.getElementById('user-email'),
+  headerGreeting: document.getElementById('header-greeting'),
+  sidebarUserName: document.getElementById('sidebar-user-name'),
+  sidebarUserEmail: document.getElementById('sidebar-user-email'),
   logoutButton: document.getElementById('logout-btn'),
   pageMessage: document.getElementById('page-message'),
   goalModal: document.getElementById('add-goal-modal'),
   openGoalModalButton: document.getElementById('open-add-goal-modal'),
   goalForm: document.getElementById('goal-form'),
   goalModalTitle: document.getElementById('goal-modal-title'),
-  goalsList: document.getElementById('goals-list')
+  goalsList: document.getElementById('goals-list'),
+  headerTools: document.querySelector('.header-tools'),
+  openSettingsButton: document.getElementById('open-settings'),
+  settingsPopover: document.getElementById('settings-popover')
 };
 
 let transactions = [];
 let currentUser = null;
 let unsubscribeTransactions = null;
-let goals = JSON.parse(localStorage.getItem('goals')) || [];
-goals = goals.map((goal) => ({ ...goal, saved: goal.saved || 0 }));
-let editingGoalIndex = -1;
+let unsubscribeGoals = null;
+let splitRatioRefreshIntervalId = null;
+let goals = [];
+let editingGoalId = null;
+let lastPersistedSavingsAllocations = {};
+const SPLIT_RATIO_REFRESH_MS = 5 * 60 * 1000;
+const DEFAULT_SPLIT_RATIOS = {
+  percentageCategories: [
+    { name: 'Entertainment', percent: 40 },
+    { name: 'Food', percent: 60 }
+  ],
+  savingsGoalCategories: [],
+  billCategories: [
+    { name: 'Insurance', amount: 120 },
+    { name: 'Subscriptions', amount: 35 },
+    { name: 'Gas', amount: 100 },
+    { name: 'Utilities', amount: 140 }
+  ]
+};
+let splitRatios = DEFAULT_SPLIT_RATIOS;
+
+function asNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 function formatCurrency(amount) {
   return `$${amount.toFixed(2)}`;
@@ -72,6 +102,294 @@ function updateSummary() {
 
   elements.balance.textContent = formatCurrency(balance);
   elements.balance.className = `card-amount ${balance >= 0 ? 'positive' : 'negative'}`;
+  updateBreakdown(balance);
+}
+
+function updateBreakdown(balance) {
+  if (!elements.breakdownList) {
+    return;
+  }
+
+  const usableBalance = Math.max(0, asNumber(balance));
+  const billGroups = (splitRatios.billCategories || []).map((category) => ({
+    label: category.name || 'Unnamed Bill',
+    amount: asNumber(category.amount)
+  }));
+
+  const billsTotal = billGroups.reduce((sum, group) => sum + group.amount, 0);
+  const balanceAfterBills = Math.max(0, usableBalance - billsTotal);
+
+  const percentGroups = (splitRatios.percentageCategories || []).map((category) => {
+    const percent = asNumber(category.percent);
+    return {
+      label: category.name || 'Unnamed Category',
+      amount: balanceAfterBills * (percent / 100),
+      percent
+    };
+  });
+
+  const allSavingsGoalAllocations = (splitRatios.savingsGoalCategories || []).map((category) => {
+    const percent = asNumber(category.percent);
+
+    return {
+      label: category.goalName || 'Unnamed Goal',
+      amount: balanceAfterBills * (percent / 100),
+      percent
+    };
+  });
+
+  persistSavingsGoalAllocations(allSavingsGoalAllocations);
+
+  const savingsGoalGroups = allSavingsGoalAllocations.filter((group) => group.amount > 0);
+
+  if (percentGroups.length === 0 && billGroups.length === 0) {
+    elements.breakdownList.innerHTML = '<li class="empty-state">No split ratio groups configured yet.</li>';
+    return;
+  }
+
+  const percentageSection = percentGroups.length === 0
+    ? '<li class="empty-state">No percentage categories yet.</li>'
+    : percentGroups.map((group) => `
+      <li class="breakdown-item-row">
+        <div>
+          <span class="breakdown-label">${group.label}</span>
+          <span class="breakdown-amount">${formatCurrency(group.amount)}</span>
+        </div>
+        <span class="progress-text">${group.percent}%</span>
+      </li>
+    `).join('');
+
+  const billsSection = billGroups.length === 0
+    ? '<li class="empty-state">No bill categories yet.</li>'
+    : billGroups.map((group) => `
+      <li class="breakdown-item-row">
+        <div>
+          <span class="breakdown-label">${group.label}</span>
+          <span class="breakdown-amount">${formatCurrency(group.amount)}</span>
+        </div>
+        <span class="progress-text"></span>
+      </li>
+    `).join('');
+
+  const savingsGoalsSection = savingsGoalGroups.length === 0
+    ? ''
+    : savingsGoalGroups.map((group) => `
+      <li class="breakdown-item-row">
+        <div>
+          <span class="breakdown-label">${group.label}</span>
+          <span class="breakdown-amount">${formatCurrency(group.amount)}</span>
+        </div>
+        <span class="progress-text">${group.percent}%</span>
+      </li>
+    `).join('');
+
+  const percentagesTotal = percentGroups.reduce((sum, group) => sum + group.amount, 0);
+  const billsTotalAmount = billGroups.reduce((sum, group) => sum + group.amount, 0);
+  const savingsGoalsTotal = savingsGoalGroups.reduce((sum, group) => sum + group.amount, 0);
+
+  const savingsGoalsHeader = savingsGoalGroups.length === 0
+    ? ''
+    : `<li class="breakdown-section-header"><span>Savings Goals</span><span class="breakdown-section-total">${formatCurrency(savingsGoalsTotal)}</span></li>`;
+
+  elements.breakdownList.innerHTML = `
+    <li class="breakdown-section-header"><span>Percentages</span><span class="breakdown-section-total">${formatCurrency(percentagesTotal)}</span></li>
+    ${percentageSection}
+    <li class="breakdown-section-header"><span>Bills</span><span class="breakdown-section-total">${formatCurrency(billsTotalAmount)}</span></li>
+    ${billsSection}
+    ${savingsGoalsHeader}
+    ${savingsGoalsSection}
+  `;
+}
+
+function persistSavingsGoalAllocations(allocations) {
+  if (!currentUser || goals.length === 0 || allocations.length === 0) {
+    return;
+  }
+
+  const writes = [];
+
+  for (const allocation of allocations) {
+    const matchingGoal = goals.find((goal) => goal.name === allocation.label);
+
+    if (!matchingGoal) {
+      continue;
+    }
+
+    const newSaved = Math.round(Math.min(allocation.amount, matchingGoal.amount) * 100) / 100;
+
+    if (lastPersistedSavingsAllocations[matchingGoal.id] === newSaved) {
+      continue;
+    }
+
+    lastPersistedSavingsAllocations[matchingGoal.id] = newSaved;
+    writes.push(
+      setDoc(doc(db, 'users', currentUser.uid, 'savingsGoals', matchingGoal.id), {
+        saved: newSaved,
+        updatedAt: serverTimestamp()
+      }, { merge: true })
+    );
+  }
+
+  if (writes.length > 0) {
+    Promise.all(writes).catch((error) => {
+      console.error('Failed to persist savings goal allocations:', error);
+    });
+  }
+}
+
+async function loadSplitRatios(userId) {
+  try {
+    const percentageRef = doc(db, 'users', userId, 'splitRatios', 'percentageCategories');
+    const billsRef = doc(db, 'users', userId, 'splitRatios', 'billCategories');
+    const legacyRef = doc(db, 'users', userId, 'splitRatios', 'current');
+
+    const [percentageSnapshot, billsSnapshot, legacySnapshot] = await Promise.all([
+      getDoc(percentageRef),
+      getDoc(billsRef),
+      getDoc(legacyRef)
+    ]);
+
+    let percentageCategories = null;
+    let savingsGoalCategories = null;
+    let billCategories = null;
+
+    if (percentageSnapshot.exists()) {
+      const data = percentageSnapshot.data();
+      const source = data.categories || data.percentageCategories;
+      const savingsGoalsSource = data.savingsGoalCategories;
+
+      if (Array.isArray(source)) {
+        percentageCategories = source.map((category, index) => ({
+          name: String(category?.name || `Category ${index + 1}`),
+          percent: asNumber(category?.percent)
+        }));
+      }
+
+      if (Array.isArray(savingsGoalsSource)) {
+        savingsGoalCategories = savingsGoalsSource.map((category, index) => ({
+          goalName: String(category?.goalName || `Goal ${index + 1}`),
+          percent: asNumber(category?.percent)
+        }));
+      } else {
+        savingsGoalCategories = [];
+      }
+    }
+
+    if (billsSnapshot.exists()) {
+      const data = billsSnapshot.data();
+      const source = data.categories || data.billCategories;
+
+      if (Array.isArray(source)) {
+        billCategories = source.map((category, index) => ({
+          name: String(category?.name || `Bill ${index + 1}`),
+          amount: asNumber(category?.amount)
+        }));
+      }
+    }
+
+    if ((!percentageCategories || !billCategories) && legacySnapshot.exists()) {
+      const data = legacySnapshot.data();
+
+      if (!percentageCategories) {
+        if (Array.isArray(data.percentageCategories)) {
+          percentageCategories = data.percentageCategories.map((category, index) => ({
+            name: String(category?.name || `Category ${index + 1}`),
+            percent: asNumber(category?.percent)
+          }));
+        } else {
+          percentageCategories = [
+            { name: 'Entertainment', percent: asNumber(data.entertainmentPercent) },
+            { name: 'Food', percent: asNumber(data.foodPercent) }
+          ];
+        }
+      }
+
+      if (!billCategories) {
+        if (Array.isArray(data.billCategories)) {
+          billCategories = data.billCategories.map((category, index) => ({
+            name: String(category?.name || `Bill ${index + 1}`),
+            amount: asNumber(category?.amount)
+          }));
+        } else {
+          billCategories = [
+            { name: 'Insurance', amount: asNumber(data.bills?.insuranceAmount) },
+            { name: 'Subscriptions', amount: asNumber(data.bills?.subscriptionsAmount) },
+            { name: 'Gas', amount: asNumber(data.bills?.gasAmount) },
+            { name: 'Utilities', amount: asNumber(data.bills?.utilitiesAmount) }
+          ];
+        }
+      }
+
+      if (!Array.isArray(savingsGoalCategories)) {
+        savingsGoalCategories = [];
+      }
+    }
+
+    splitRatios = {
+      percentageCategories: percentageCategories || DEFAULT_SPLIT_RATIOS.percentageCategories,
+      savingsGoalCategories: savingsGoalCategories || DEFAULT_SPLIT_RATIOS.savingsGoalCategories,
+      billCategories: billCategories || DEFAULT_SPLIT_RATIOS.billCategories
+    };
+  } catch (error) {
+    console.warn('Could not load split ratios:', error);
+    splitRatios = DEFAULT_SPLIT_RATIOS;
+  }
+
+  populateExpenseCategoryDropdown();
+  updateSummary();
+}
+
+function populateExpenseCategoryDropdown() {
+  const select = document.getElementById('expense-category');
+
+  if (!select) {
+    return;
+  }
+
+  const percentNames = (splitRatios.percentageCategories || []).map((c) => c.name).filter(Boolean);
+  const billNames = (splitRatios.billCategories || []).map((c) => c.name).filter(Boolean);
+  const seen = new Set();
+  const allNames = [];
+
+  for (const name of [...percentNames, ...billNames]) {
+    if (!seen.has(name)) {
+      seen.add(name);
+      allNames.push(name);
+    }
+  }
+
+  const currentValue = select.value;
+
+  select.innerHTML = allNames
+    .map((name) => `<option value="${name}">${name}</option>`)
+    .join('') + '<option value="Other">Other</option>';
+
+  if ([...select.options].some((opt) => opt.value === currentValue)) {
+    select.value = currentValue;
+  }
+}
+
+function startSplitRatioAutoRefresh(userId) {
+  if (splitRatioRefreshIntervalId) {
+    clearInterval(splitRatioRefreshIntervalId);
+  }
+
+  splitRatioRefreshIntervalId = setInterval(async () => {
+    if (!currentUser || currentUser.uid !== userId) {
+      return;
+    }
+
+    await loadSplitRatios(userId);
+  }, SPLIT_RATIO_REFRESH_MS);
+}
+
+function stopSplitRatioAutoRefresh() {
+  if (!splitRatioRefreshIntervalId) {
+    return;
+  }
+
+  clearInterval(splitRatioRefreshIntervalId);
+  splitRatioRefreshIntervalId = null;
 }
 
 function renderList() {
@@ -138,11 +456,8 @@ function subscribeToTransactions(userId) {
     unsubscribeTransactions();
   }
 
-  const transactionsRef = collection(db, 'users', userId, 'transactions');
-  const transactionsQuery = query(transactionsRef, orderBy('createdAt', 'desc'));
-
   unsubscribeTransactions = onSnapshot(
-    transactionsQuery,
+    collection(db, 'users', userId, 'transactions'),
     (snapshot) => {
       transactions = snapshot.docs.map((entry) => {
         const data = entry.data();
@@ -163,6 +478,78 @@ function subscribeToTransactions(userId) {
     },
     () => {
       setPageMessage('Could not load transactions. Check your Firestore rules and network connection.', 'error');
+    }
+  );
+}
+
+function normalizeGoal(entry) {
+  const data = entry.data();
+  const amount = Math.max(0, asNumber(data.amount));
+  const saved = Math.min(Math.max(0, asNumber(data.saved)), amount);
+
+  return {
+    id: entry.id,
+    name: String(data.name || 'Unnamed Goal').trim() || 'Unnamed Goal',
+    amount,
+    saved
+  };
+}
+
+async function migrateLegacyGoalsToFirestore(userId) {
+  let legacyGoals = [];
+
+  try {
+    legacyGoals = (JSON.parse(localStorage.getItem('goals')) || [])
+      .map((goal) => ({
+        name: String(goal?.name || '').trim(),
+        amount: Math.max(0, asNumber(goal?.amount)),
+        saved: Math.max(0, asNumber(goal?.saved))
+      }))
+      .filter((goal) => goal.name && goal.amount > 0)
+      .map((goal) => ({
+        ...goal,
+        saved: Math.min(goal.saved, goal.amount)
+      }));
+  } catch {
+    legacyGoals = [];
+  }
+
+  if (legacyGoals.length === 0) {
+    return;
+  }
+
+  const existingGoalsSnapshot = await getDocs(collection(db, 'users', userId, 'savingsGoals'));
+
+  if (!existingGoalsSnapshot.empty) {
+    localStorage.removeItem('goals');
+    return;
+  }
+
+  const writes = legacyGoals.map((goal) => addDoc(collection(db, 'users', userId, 'savingsGoals'), {
+    name: goal.name,
+    amount: goal.amount,
+    saved: goal.saved,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  }));
+
+  await Promise.all(writes);
+  localStorage.removeItem('goals');
+}
+
+function subscribeToGoals(userId) {
+  if (unsubscribeGoals) {
+    unsubscribeGoals();
+  }
+
+  unsubscribeGoals = onSnapshot(
+    collection(db, 'users', userId, 'savingsGoals'),
+    (snapshot) => {
+      goals = snapshot.docs.map(normalizeGoal);
+      renderGoals();
+    },
+    () => {
+      setPageMessage('Could not load savings goals. Check your Firestore rules and network connection.', 'error');
     }
   );
 }
@@ -278,10 +665,6 @@ async function handleLogout() {
   }
 }
 
-function saveGoals() {
-  localStorage.setItem('goals', JSON.stringify(goals));
-}
-
 function renderGoals() {
   if (goals.length === 0) {
     elements.goalsList.innerHTML = '<li>No goals set yet.</li>';
@@ -317,8 +700,21 @@ function toggleGoalModal(show) {
   }
 }
 
+function toggleSettingsPopover(show) {
+  if (!elements.settingsPopover || !elements.openSettingsButton) {
+    return;
+  }
+
+  elements.settingsPopover.hidden = !show;
+  elements.openSettingsButton.setAttribute('aria-expanded', show ? 'true' : 'false');
+
+  if (!show) {
+    elements.openSettingsButton.focus();
+  }
+}
+
 function openCreateGoalModal() {
-  editingGoalIndex = -1;
+  editingGoalId = null;
   elements.goalModalTitle.textContent = 'Add Savings Goal';
   elements.goalForm.reset();
   document.getElementById('goal-saved').value = 0;
@@ -335,12 +731,12 @@ function openEditGoalModal(index) {
   document.getElementById('goal-name').value = goal.name;
   document.getElementById('goal-amount').value = goal.amount;
   document.getElementById('goal-saved').value = goal.saved;
-  editingGoalIndex = index;
+  editingGoalId = goal.id;
   elements.goalModalTitle.textContent = 'Edit Savings Goal';
   toggleGoalModal(true);
 }
 
-function deleteGoal(index) {
+async function deleteGoal(index) {
   if (!goals[index]) {
     return;
   }
@@ -349,12 +745,16 @@ function deleteGoal(index) {
     return;
   }
 
-  goals.splice(index, 1);
-  saveGoals();
-  renderGoals();
+  if (!currentUser) {
+    setPageMessage('You must be logged in to delete a goal.', 'error');
+    return;
+  }
+
+  await deleteDoc(doc(db, 'users', currentUser.uid, 'savingsGoals', goals[index].id));
+  setPageMessage('Savings goal deleted.', 'success');
 }
 
-function addSavings(index) {
+async function addSavings(index) {
   if (!goals[index]) {
     return;
   }
@@ -366,40 +766,63 @@ function addSavings(index) {
     return;
   }
 
-  goals[index].saved += amount;
-
-  if (goals[index].saved > goals[index].amount) {
-    goals[index].saved = goals[index].amount;
+  if (!currentUser) {
+    setPageMessage('You must be logged in to update savings.', 'error');
+    return;
   }
 
-  saveGoals();
-  renderGoals();
+  const goal = goals[index];
+  const nextSaved = Math.min(goal.saved + amount, goal.amount);
+
+  await setDoc(doc(db, 'users', currentUser.uid, 'savingsGoals', goal.id), {
+    saved: nextSaved,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
+
+  setPageMessage('Savings updated.', 'success');
 }
 
-function handleGoalFormSubmit(event) {
+async function handleGoalFormSubmit(event) {
   event.preventDefault();
+
+  if (!currentUser) {
+    setPageMessage('You must be logged in to save goals.', 'error');
+    return;
+  }
 
   const name = document.getElementById('goal-name').value.trim();
   const amount = parseFloat(document.getElementById('goal-amount').value);
   const saved = parseFloat(document.getElementById('goal-saved').value) || 0;
 
   if (!name || Number.isNaN(amount) || amount <= 0) {
+    setPageMessage('Please provide a valid goal name and target amount.', 'error');
     return;
   }
 
-  if (editingGoalIndex >= 0) {
-    goals[editingGoalIndex] = { name, amount, saved };
+  const payload = {
+    name,
+    amount,
+    saved: Math.min(Math.max(0, saved), amount),
+    updatedAt: serverTimestamp()
+  };
+
+  if (editingGoalId) {
+    await setDoc(doc(db, 'users', currentUser.uid, 'savingsGoals', editingGoalId), payload, { merge: true });
+    setPageMessage('Savings goal updated.', 'success');
   } else {
-    goals.push({ name, amount, saved });
+    await addDoc(collection(db, 'users', currentUser.uid, 'savingsGoals'), {
+      ...payload,
+      createdAt: serverTimestamp()
+    });
+    setPageMessage('Savings goal created.', 'success');
   }
 
-  saveGoals();
-  renderGoals();
   elements.goalForm.reset();
+  editingGoalId = null;
   toggleGoalModal(false);
 }
 
-function handleGoalActions(event) {
+async function handleGoalActions(event) {
   const button = event.target.closest('button[data-action]');
 
   if (!button) {
@@ -408,27 +831,96 @@ function handleGoalActions(event) {
 
   const index = Number(button.dataset.index);
 
-  if (button.dataset.action === 'add-savings') {
-    addSavings(index);
-    return;
-  }
+  try {
+    if (button.dataset.action === 'add-savings') {
+      await addSavings(index);
+      return;
+    }
 
-  if (button.dataset.action === 'edit-goal') {
-    openEditGoalModal(index);
-    return;
-  }
+    if (button.dataset.action === 'edit-goal') {
+      openEditGoalModal(index);
+      return;
+    }
 
-  if (button.dataset.action === 'delete-goal') {
-    deleteGoal(index);
+    if (button.dataset.action === 'delete-goal') {
+      await deleteGoal(index);
+    }
+  } catch (error) {
+    console.error('Savings goal action failed:', error);
+    setPageMessage('Could not update savings goal right now.', 'error');
   }
 }
 
-function handleAuthStateChanged(user) {
+function getDayPeriodGreeting() {
+  const hour = new Date().getHours();
+
+  if (hour < 12) {
+    return 'Good morning';
+  }
+
+  if (hour < 18) {
+    return 'Good afternoon';
+  }
+
+  return 'Good evening';
+}
+
+function getHeaderGreeting(firstName) {
+  const dayGreeting = getDayPeriodGreeting();
+  const messages = [
+    `Hi, ${firstName}`,
+    `${dayGreeting}, ${firstName}`,
+    `Glad to see you, ${firstName}`,
+    `${dayGreeting}! Ready to budget, ${firstName}?`
+  ];
+
+  const minute = new Date().getMinutes();
+  const messageIndex = minute % messages.length;
+  return messages[messageIndex];
+}
+
+async function resolveUserFirstName(user) {
+  const displayNameFirstName = (user.displayName || '').trim().split(' ')[0];
+
+  if (displayNameFirstName) {
+    return displayNameFirstName;
+  }
+
+  try {
+    const userProfile = await getDoc(doc(db, 'users', user.uid));
+
+    if (userProfile.exists()) {
+      const firstName = (userProfile.data()?.firstName || '').trim();
+
+      if (firstName) {
+        return firstName;
+      }
+    }
+  } catch (error) {
+    console.warn('Could not load user profile:', error);
+  }
+
+  const emailFirstPart = (user.email || '').split('@')[0];
+  return emailFirstPart || 'User';
+}
+
+async function handleAuthStateChanged(user) {
   if (!user) {
+    stopSplitRatioAutoRefresh();
+
     if (unsubscribeTransactions) {
       unsubscribeTransactions();
       unsubscribeTransactions = null;
     }
+
+    if (unsubscribeGoals) {
+      unsubscribeGoals();
+      unsubscribeGoals = null;
+    }
+
+    goals = [];
+    lastPersistedSavingsAllocations = {};
+    renderGoals();
 
     window.location.replace('login.html');
     return;
@@ -436,15 +928,28 @@ function handleAuthStateChanged(user) {
 
   currentUser = user;
 
-  if (elements.userEmail) {
-    elements.userEmail.textContent = user.email || user.displayName || 'Signed in';
-    elements.userEmail.hidden = false;
+  const firstName = await resolveUserFirstName(user);
+
+  if (elements.headerGreeting) {
+    elements.headerGreeting.textContent = getHeaderGreeting(firstName);
+  }
+
+  if (elements.sidebarUserName) {
+    elements.sidebarUserName.textContent = firstName;
+  }
+
+  if (elements.sidebarUserEmail) {
+    elements.sidebarUserEmail.textContent = user.email || 'Signed in';
   }
 
   if (elements.logoutButton) {
     elements.logoutButton.hidden = false;
   }
 
+  await loadSplitRatios(user.uid);
+  startSplitRatioAutoRefresh(user.uid);
+  await migrateLegacyGoalsToFirestore(user.uid);
+  subscribeToGoals(user.uid);
   subscribeToTransactions(user.uid);
 }
 
@@ -507,6 +1012,33 @@ function setupListeners() {
 
   elements.goalForm.addEventListener('submit', handleGoalFormSubmit);
   elements.goalsList.addEventListener('click', handleGoalActions);
+
+  if (elements.openSettingsButton && elements.settingsPopover) {
+    elements.openSettingsButton.addEventListener('click', () => {
+      toggleSettingsPopover(elements.settingsPopover.hidden);
+    });
+
+    document.addEventListener('click', (event) => {
+      const clickedInsidePopover = elements.settingsPopover.contains(event.target);
+      const clickedSettingsButton = elements.openSettingsButton.contains(event.target);
+
+      if (!clickedInsidePopover && !clickedSettingsButton) {
+        toggleSettingsPopover(false);
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !elements.settingsPopover.hidden) {
+        toggleSettingsPopover(false);
+      }
+    });
+  }
+
+  if (elements.openPercentagesButton) {
+    elements.openPercentagesButton.addEventListener('click', () => {
+      window.location.href = 'splitRatio.html';
+    });
+  }
 }
 
 function init() {

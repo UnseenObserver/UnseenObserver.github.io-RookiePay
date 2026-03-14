@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MoneyFirst | Split Ratios</title>
+  <link href="https://fonts.googleapis.com/css2?family=Margarine&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-title">
+        <h1>MoneyFirst</h1>
+        <p class="subtitle">Split Ratio Setup</p>
+      </div>
+      <div class="header-tools">
+        <a class="btn-secondary" href="dashboard.html">Back to Dashboard</a>
+      </div>
+    </header>
+
+    <section class="form-section">
+      <h2>Split Ratios</h2>
+      <form id="split-ratio-form">
+        <div class="split-group">
+          <div class="split-group-header">
+            <h3>Percentage Categories</h3>
+            <button type="button" class="btn-secondary" id="add-percent-category">+ Add % Category</button>
+          </div>
+          <div class="split-list" id="percent-categories-list"></div>
+        </div>
+
+        <div class="split-group">
+          <div class="split-group-header">
+            <h3>Bills (Fixed $)</h3>
+            <button type="button" class="btn-secondary" id="add-bill-category">+ Add Bill</button>
+          </div>
+          <div class="split-list" id="bill-categories-list"></div>
+        </div>
+
+        <div class="split-group">
+          <div class="split-group-header">
+            <h3>Savings Goals (%)</h3>
+            <button type="button" class="btn-secondary" id="add-goal-category">+ Add Goal %</button>
+          </div>
+          <div class="split-list" id="goal-categories-list"></div>
+        </div>
+
+        <div class="split-actions-bottom">
+          <p class="page-message split-ratio-status" id="split-ratio-message" aria-live="polite">Set percentage categories and fixed monthly bills.</p>
+          <button type="submit" class="btn-add" id="save-ratios-bottom">Save Ratios</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <script src="assets/js/cache-registration.js"></script>
+  <script type="module" src="assets/js/split-ratio.js"></script>
+</body>
+</html>

@@ -3,24 +3,32 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MoneyFirst</title>
+  <title>MoneyFirst | Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Margarine&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body class="dashboard-page">
   <div class="container">
     <header>
       <div class="header-title">
         <h1>MoneyFirst</h1>
         <p class="subtitle">Your Personal Budget Tracker</p>
       </div>
-      <button class="btn-settings header-settings" id="open-settings">⚙</button>
-      <h1>MoneyFirst</h1>
-      <p class="subtitle">Your Personal Budget Tracker</p>
-      <div class="header-actions">
-        <span id="user-email" hidden></span>
-        <button class="btn-secondary" id="logout-btn" type="button" hidden>Logout</button>
+      <div class="header-tools">
+        <p class="header-greeting" id="header-greeting">Welcome back</p>
+        <button class="btn-settings-trigger" id="open-settings" type="button" aria-label="Open settings" aria-haspopup="menu" aria-expanded="false">⚙</button>
+        <div class="settings-popover" id="settings-popover" role="menu" aria-labelledby="open-settings" hidden>
+          <div class="settings-user-card settings-user-card-link" role="button" tabindex="0" aria-label="Go to account settings" onclick="window.location.href='account.html'" onkeydown="if(event.key==='Enter'||event.key===' ')window.location.href='account.html'">
+            <p class="sidebar-user-name" id="sidebar-user-name">User</p>
+            <p class="sidebar-user-email" id="sidebar-user-email">Not signed in</p>
+          </div>
+          <nav class="settings-menu-list">
+            <button class="settings-menu-item" type="button" onclick="window.location.href='faq.html'">FAQ</button>
+            <button class="settings-menu-item" type="button" onclick="window.location.href='terms.html'">Terms and Conditions</button>
+            <button class="settings-menu-item settings-menu-item-danger" id="logout-btn" type="button">Logout</button>
+          </nav>
+        </div>
       </div>
     </header>
 
@@ -31,9 +39,7 @@
       <nav class="tabs" role="tablist">
         <button class="tab active" data-tab="dashboard" role="tab" aria-selected="true">Dashboard</button>
         <button class="tab" data-tab="history" role="tab" aria-selected="false">History</button>
-        <button class="tab" data-tab="breakdown" role="tab" aria-selected="false">Breakdown</button>
       </nav>
-      <button class="btn-add" id="open-add-modal">+ Add Transaction</button>
     </div>
 
     <!-- Dashboard Tab -->
@@ -42,11 +48,19 @@
       <section class="summary">
         <div class="summary-left">
           <div class="card balance">
-            <span class="card-label">Balance</span>
+            <div class="card-header">
+              <span class="card-label">Balance</span>
+              <button class="btn-add-goal btn-add-transaction" id="open-add-modal" type="button" aria-label="Add transaction">+</button>
+            </div>
             <span class="card-amount" id="balance">$0.00</span>
           </div>
           <div class="card breakdown">
-            <span class="card-label">Category Breakdown</span>
+            <div class="card-header">
+              <span class="card-label">Budget Breakdown</span>
+              <div class="breakdown-header-right">
+                <button class="btn-breakdown-action" id="open-percentages" type="button">Edit %</button>
+              </div>
+            </div>
             <ul class="breakdown-list" id="breakdown-list">
               <li class="empty-state">No expenses yet. Add a transaction to see breakdown.</li>
             </ul>
@@ -119,12 +133,6 @@
             <div class="form-group">
               <label for="expense-category">Category</label>
               <select id="expense-category">
-                <option value="Food">Food</option>
-                <option value="Transportation">Transportation</option>
-                <option value="Entertainment">Entertainment</option>
-                <option value="Utilities">Utilities</option>
-                <option value="Healthcare">Healthcare</option>
-                <option value="Shopping">Shopping</option>
                 <option value="Other">Other</option>
               </select>
             </div>
@@ -191,375 +199,7 @@
       </section>
     </div>
 
-    <!-- Breakdown Tab -->
-    <section class="breakdown-section tab-panel" data-panel="breakdown" hidden>
-      <h2>Breakdown</h2>
-      <p>Coming soon – this section will visualize Expenses, Income, and spend categories.</p>
-    </section>
   </div>
-
-  <!-- Settings Sidebar -->
-  <div class="sidebar-overlay" id="sidebar-overlay" hidden></div>
-  <div class="sidebar" id="settings-sidebar" aria-hidden="true">
-    <div class="sidebar-header">
-      <h2>Settings</h2>
-      <button class="sidebar-close" id="close-settings" aria-label="Close settings">✕</button>
-    </div>
-    <nav class="sidebar-nav">
-      <button class="sidebar-item" type="button">Account</button>
-      <button class="sidebar-item" type="button">Percentages</button>
-      <button class="sidebar-item" type="button">FAQ</button>
-      <button class="sidebar-item" type="button">Terms and Conditions</button>
-    </nav>
-  </div>
-
-  <script>
-    const transactions = [];
-
-    const form = document.getElementById('transaction-form');
-    const list = document.getElementById('transaction-list');
-    const clearBtn = document.getElementById('clear-btn');
-    const modal = document.getElementById('add-modal');
-    const openModalBtn = document.getElementById('open-add-modal');
-
-    // Transaction tab elements
-    const transactionTabs = document.querySelectorAll('.transaction-tab');
-    const incomeFields = document.querySelector('.income-fields');
-    const expenseFields = document.querySelector('.expense-fields');
-
-    function toggleModal(show) {
-      modal.hidden = !show;
-      document.body.style.overflow = show ? 'hidden' : '';
-      if (show) {
-        // Reset to income tab
-        setTransactionTab('income');
-        document.getElementById('amount').focus();
-      }
-    }
-
-    function setTransactionTab(type) {
-      transactionTabs.forEach(tab => {
-        tab.classList.toggle('active', tab.dataset.type === type);
-      });
-      incomeFields.style.display = type === 'income' ? 'grid' : 'none';
-      expenseFields.style.display = type === 'expense' ? 'grid' : 'none';
-    }
-
-    transactionTabs.forEach(tab => {
-      tab.addEventListener('click', () => setTransactionTab(tab.dataset.type));
-    });
-
-    openModalBtn.addEventListener('click', () => toggleModal(true));
-
-    modal.addEventListener('click', (event) => {
-      if (event.target.closest('[data-close]')) {
-        toggleModal(false);
-      }
-    });
-
-    // Handle description select
-    const descSelect = document.getElementById('description-select');
-    const customDescGroup = document.getElementById('custom-description-group');
-    const customDescInput = document.getElementById('custom-description');
-
-    descSelect.addEventListener('change', () => {
-      if (descSelect.value === 'Others') {
-        customDescGroup.style.display = 'block';
-      } else {
-        customDescGroup.style.display = 'none';
-      }
-    });
-
-    function formatCurrency(amount) {
-      return '$' + amount.toFixed(2);
-    }
-
-    function updateSummary() {
-      const income = transactions
-        .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + t.amount, 0);
-      const expense = transactions
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + t.amount, 0);
-      const balance = income - expense;
-
-      const balanceEl = document.getElementById('balance');
-      balanceEl.textContent = formatCurrency(balance);
-      balanceEl.className = 'card-amount ' + (balance >= 0 ? 'positive' : 'negative');
-
-      updateBreakdown();
-    }
-
-    function updateBreakdown() {
-      const breakdownList = document.getElementById('breakdown-list');
-      const expenseTransactions = transactions.filter(t => t.type === 'expense');
-
-      if (expenseTransactions.length === 0) {
-        breakdownList.innerHTML = '<li class="empty-state">No expenses yet. Add a transaction to see breakdown.</li>';
-        return;
-      }
-
-      const totalsByCategory = expenseTransactions.reduce((acc, tx) => {
-        acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
-        return acc;
-      }, {});
-
-      const totalExpense = Object.values(totalsByCategory).reduce((sum, v) => sum + v, 0);
-
-      breakdownList.innerHTML = Object.entries(totalsByCategory)
-        .map(([category, amount]) => {
-          const percent = totalExpense > 0 ? (amount / totalExpense) * 100 : 0;
-          return `
-            <li>
-              <div>
-                <span class="breakdown-label">${category}</span>
-                <span class="breakdown-amount">${formatCurrency(amount)}</span>
-                <div class="breakdown-bar">
-                  <div class="breakdown-fill" style="width: ${percent}%"></div>
-                </div>
-              </div>
-              <span class="progress-text">${percent.toFixed(1)}%</span>
-            </li>
-          `;
-        })
-        .join('');
-    }
-
-    function renderList() {
-      if (transactions.length === 0) {
-        list.innerHTML = '<li class="empty-state">No transactions yet. Add one above!</li>';
-        return;
-      }
-      list.innerHTML = transactions.map((t, i) => `
-        <li class="transaction-item ${t.type}">
-          <div class="transaction-info">
-            <span class="transaction-desc">${t.description}</span>
-            <span class="transaction-category">${t.category}</span>
-          </div>
-          <div class="transaction-right">
-            <span class="transaction-amount">${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}</span>
-            <button class="btn-delete" onclick="deleteTransaction(${i})">✕</button>
-          </div>
-        </li>
-      `).reverse().join('');
-    }
-
-    function deleteTransaction(index) {
-      transactions.splice(index, 1);
-      renderList();
-      updateSummary();
-    }
-
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
-      const activeTab = document.querySelector('.transaction-tab.active').dataset.type;
-      let description, amount, category, type, notes;
-
-      if (activeTab === 'income') {
-        amount = parseFloat(document.getElementById('amount').value);
-        const descSelectValue = document.getElementById('description-select').value;
-        description = descSelectValue;
-        if (descSelectValue === 'Others') {
-          description = document.getElementById('custom-description').value.trim();
-        }
-        notes = document.getElementById('notes').value.trim();
-        type = 'income';
-        category = descSelectValue;
-      } else if (activeTab === 'expense') {
-        description = document.getElementById('expense-title').value.trim();
-        amount = parseFloat(document.getElementById('expense-amount').value);
-        category = document.getElementById('expense-category').value;
-        notes = document.getElementById('expense-notes').value.trim();
-        type = 'expense';
-      }
-
-      if (!description) {
-        alert('Please enter a description/title.');
-        return;
-      }
-      if (isNaN(amount)) {
-        alert('Please enter a valid amount.');
-        return;
-      }
-      if (amount <= 0) {
-        alert('Amount must be greater than 0.');
-        return;
-      }
-
-      transactions.push({ description, amount, category, type, notes });
-      renderList();
-      updateSummary();
-      form.reset();
-      if (activeTab === 'income') {
-        document.getElementById('custom-description-group').style.display = 'none';
-      }
-      toggleModal(false);
-    });
-
-    clearBtn.addEventListener('click', function () {
-      if (transactions.length === 0) return;
-      if (confirm('Clear all transactions?')) {
-        transactions.length = 0;
-        renderList();
-        updateSummary();
-      }
-    });
-
-    // Tab switching
-    const tabs = document.querySelectorAll('.tab');
-    const panels = document.querySelectorAll('.tab-panel');
-
-    function setActiveTab(tabKey) {
-      tabs.forEach(tab => {
-        const isActive = tab.dataset.tab === tabKey;
-        tab.classList.toggle('active', isActive);
-        tab.setAttribute('aria-selected', isActive);
-      });
-
-      panels.forEach(panel => {
-        panel.hidden = panel.dataset.panel !== tabKey;
-      });
-    }
-
-    tabs.forEach(tab => {
-      tab.addEventListener('click', () => setActiveTab(tab.dataset.tab));
-    });
-
-    // Default view
-    setActiveTab('dashboard');
-
-    // Goals functionality
-    let goals = JSON.parse(localStorage.getItem('goals')) || [];
-    goals = goals.map(goal => ({ ...goal, saved: goal.saved || 0 }));
-    goals = goals.map(goal => ({ ...goal, saved: goal.saved || 0 }));
-
-    const goalModal = document.getElementById('add-goal-modal');
-    const openGoalModalBtn = document.getElementById('open-add-goal-modal');
-    const goalForm = document.getElementById('goal-form');
-    const goalModalTitle = document.getElementById('goal-modal-title');
-    let editingGoalIndex = -1;
-
-    function toggleGoalModal(show) {
-      goalModal.hidden = !show;
-      document.body.style.overflow = show ? 'hidden' : '';
-      if (show) {
-        document.getElementById('goal-name').focus();
-      }
-    }
-
-    openGoalModalBtn.addEventListener('click', () => {
-      editingGoalIndex = -1;
-      goalModalTitle.textContent = 'Add Savings Goal';
-      goalForm.reset();
-      document.getElementById('goal-saved').value = 0;
-      toggleGoalModal(true);
-    });
-
-    goalModal.addEventListener('click', (event) => {
-      if (event.target.closest('[data-close]')) {
-        toggleGoalModal(false);
-      }
-    });
-
-    function renderGoals() {
-      const goalsList = document.getElementById('goals-list');
-      if (goals.length === 0) {
-        goalsList.innerHTML = '<li>No goals set yet.</li>';
-        return;
-      }
-      goalsList.innerHTML = goals.map((goal, i) => {
-        const percentage = goal.amount > 0 ? (goal.saved / goal.amount) * 100 : 0;
-        return `
-          <li>
-            <strong>${goal.name}:</strong> <strong class="goal-amount">${formatCurrency(goal.saved)} / ${formatCurrency(goal.amount)}</strong>
-            <div class="progress-bar">
-              <div class="progress-fill" style="width: ${percentage}%"></div>
-            </div>
-            <span class="progress-text">${percentage.toFixed(1)}%</span>
-            <div class="goal-actions">
-              <button class="btn-add-save" onclick="addSavings(${i})">Add Savings</button>
-              <button class="btn-edit" onclick="editGoal(${i})">Edit</button>
-              <button class="btn-delete" onclick="deleteGoal(${i})">Delete</button>
-            </div>
-          </li>
-        `;
-      }).join('');
-    }
-
-    function editGoal(index) {
-      const goal = goals[index];
-      document.getElementById('goal-name').value = goal.name;
-      document.getElementById('goal-amount').value = goal.amount;
-      document.getElementById('goal-saved').value = goal.saved;
-      editingGoalIndex = index;
-      goalModalTitle.textContent = 'Edit Savings Goal';
-      toggleGoalModal(true);
-    }
-
-    function deleteGoal(index) {
-      if (confirm('Delete this goal?')) {
-        goals.splice(index, 1);
-        saveGoals();
-        renderGoals();
-      }
-    }
-
-    function addSavings(index) {
-      const amountStr = prompt('Enter amount to add to savings:');
-      const amount = parseFloat(amountStr);
-      if (amount && !isNaN(amount) && amount > 0) {
-        goals[index].saved += amount;
-        if (goals[index].saved > goals[index].amount) {
-          goals[index].saved = goals[index].amount;
-        }
-        saveGoals();
-        renderGoals();
-      }
-    }
-
-    function saveGoals() {
-      localStorage.setItem('goals', JSON.stringify(goals));
-    }
-
-    goalForm.addEventListener('submit', function (e) {
-      e.preventDefault();
-      const name = document.getElementById('goal-name').value.trim();
-      const amount = parseFloat(document.getElementById('goal-amount').value);
-      const saved = parseFloat(document.getElementById('goal-saved').value) || 0;
-
-      if (!name || isNaN(amount) || amount <= 0) return;
-
-      if (editingGoalIndex >= 0) {
-        goals[editingGoalIndex] = { name, amount, saved };
-      } else {
-        goals.push({ name, amount, saved });
-      }
-      saveGoals();
-      renderGoals();
-      goalForm.reset();
-      toggleGoalModal(false);
-    });
-
-    // Settings sidebar
-    const settingsButton = document.getElementById('open-settings');
-    const settingsSidebar = document.getElementById('settings-sidebar');
-    const sidebarOverlay = document.getElementById('sidebar-overlay');
-    const closeSettings = document.getElementById('close-settings');
-
-    function toggleSidebar(show) {
-      settingsSidebar.classList.toggle('open', show);
-      settingsSidebar.setAttribute('aria-hidden', show ? 'false' : 'true');
-      sidebarOverlay.hidden = !show;
-      document.body.style.overflow = show ? 'hidden' : '';
-    }
-
-    settingsButton.addEventListener('click', () => toggleSidebar(true));
-    closeSettings.addEventListener('click', () => toggleSidebar(false));
-    sidebarOverlay.addEventListener('click', () => toggleSidebar(false));
-
-    // Initial render
-    renderGoals();
-  </script>
   <script src="assets/js/cache-registration.js"></script>
   <script type="module" src="assets/js/dashboard.js"></script>
 </body>
