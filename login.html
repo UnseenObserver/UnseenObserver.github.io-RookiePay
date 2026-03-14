@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Budget Tracker | Login</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="auth-page">
+  <main class="auth-shell">
+    <section class="auth-hero">
+      <a class="back-link" href="index.html">← Back to Budget Tracker</a>
+      <span class="eyebrow">Smart money starts here</span>
+      <h1>Access your budget from anywhere.</h1>
+      <p>
+        Sign in to manage your transactions, or create an account to start tracking
+        income, spending, and progress in one place.
+      </p>
+
+      <div class="auth-highlights">
+        <div class="highlight-card">
+          <strong>Real-time balance</strong>
+          <span>See exactly where your money stands after every entry.</span>
+        </div>
+        <div class="highlight-card">
+          <strong>Simple categories</strong>
+          <span>Organize spending without digging through spreadsheets.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="auth-card" aria-label="Authentication forms">
+      <div class="auth-tabs" role="tablist" aria-label="Choose login or sign up form">
+        <button class="auth-tab active" type="button" role="tab" aria-selected="true" aria-controls="login-panel" id="login-tab">Login</button>
+        <button class="auth-tab" type="button" role="tab" aria-selected="false" aria-controls="signup-panel" id="signup-tab">Sign Up</button>
+      </div>
+
+      <div class="auth-panel active" id="login-panel" role="tabpanel" aria-labelledby="login-tab">
+        <h2>Welcome back</h2>
+        <p class="auth-copy">Sign in to continue managing your budget.</p>
+        <form class="auth-form" data-mode="login">
+          <div class="form-group">
+            <label for="login-email">Email address</label>
+            <input type="email" id="login-email" placeholder="you@example.com" required />
+          </div>
+          <div class="form-group">
+            <label for="login-password">Password</label>
+            <input type="password" id="login-password" placeholder="Enter your password" required />
+          </div>
+          <div class="auth-row">
+            <label class="checkbox-row">
+              <input type="checkbox" />
+              <span>Remember me</span>
+            </label>
+            <a href="#" class="text-link" id="forgot-password-link">Forgot password?</a>
+          </div>
+          <p class="auth-message" aria-live="polite"></p>
+          <button type="submit" class="btn-add auth-submit">Login</button>
+        </form>
+      </div>
+
+      <div class="auth-panel" id="signup-panel" role="tabpanel" aria-labelledby="signup-tab" hidden>
+        <h2>Create account</h2>
+        <p class="auth-copy">Set up your profile and start tracking today.</p>
+        <form class="auth-form" data-mode="signup">
+          <div class="auth-grid">
+            <div class="form-group">
+              <label for="first-name">First name</label>
+              <input type="text" id="first-name" placeholder="Alex" required />
+            </div>
+            <div class="form-group">
+              <label for="last-name">Last name</label>
+              <input type="text" id="last-name" placeholder="Taylor" required />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="signup-username">Username</label>
+            <input type="text" id="signup-username" placeholder="alex_taylor" minlength="3" maxlength="30" required />
+          </div>
+          <div class="form-group">
+            <label for="signup-email">Email address</label>
+            <input type="email" id="signup-email" placeholder="you@example.com" required />
+          </div>
+          <div class="auth-grid">
+            <div class="form-group">
+              <label for="signup-password">Password</label>
+              <input type="password" id="signup-password" placeholder="Create a password" required />
+            </div>
+            <div class="form-group">
+              <label for="confirm-password">Confirm password</label>
+              <input type="password" id="confirm-password" placeholder="Repeat password" required />
+            </div>
+          </div>
+          <label class="checkbox-row terms-row">
+            <input type="checkbox" required />
+            <span>I agree to the terms and privacy policy.</span>
+          </label>
+          <p class="auth-message" aria-live="polite"></p>
+          <button type="submit" class="btn-add auth-submit">Create Account</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <script src="cache-registration.js"></script>
+
+  <script type="module">
+    import { auth, db } from './firebase-config.js';
+    import {
+      createUserWithEmailAndPassword,
+      onAuthStateChanged,
+      sendPasswordResetEmail,
+      signInWithEmailAndPassword,
+      updateProfile
+    } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js';
+    import {
+      doc,
+      serverTimestamp,
+      setDoc
+    } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
+
+    const authTabs = document.querySelectorAll('.auth-tab');
+    const authPanels = document.querySelectorAll('.auth-panel');
+    const authForms = document.querySelectorAll('.auth-form');
+    const forgotPasswordLink = document.getElementById('forgot-password-link');
+    const loginEmailInput = document.getElementById('login-email');
+
+    authTabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const isLogin = tab.id === 'login-tab';
+
+        authTabs.forEach((item) => {
+          const selected = item === tab;
+          item.classList.toggle('active', selected);
+          item.setAttribute('aria-selected', selected ? 'true' : 'false');
+        });
+
+        authPanels.forEach((panel) => {
+          const showPanel = isLogin ? panel.id === 'login-panel' : panel.id === 'signup-panel';
+          panel.classList.toggle('active', showPanel);
+          panel.hidden = !showPanel;
+        });
+      });
+    });
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        window.location.replace('index.html');
+      }
+    });
+
+    function setAuthMessage(form, text, type) {
+      const message = form.querySelector('.auth-message');
+      message.textContent = text;
+      message.classList.remove('error', 'success');
+      if (type) {
+        message.classList.add(type);
+      }
+    }
+
+    function getFriendlyAuthMessage(error) {
+      const code = error?.code;
+
+      if (code === 'auth/configuration-not-found') {
+        return 'Firebase Auth is not fully configured. In Firebase Console: Authentication > Sign-in method, enable Email/Password, then retry.';
+      }
+
+      if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+        return 'Incorrect email or password.';
+      }
+
+      if (code === 'auth/email-already-in-use') {
+        return 'That email is already registered. Try logging in instead.';
+      }
+
+      if (code === 'auth/weak-password') {
+        return 'Password is too weak. Use at least 6 characters.';
+      }
+
+      if (code === 'auth/invalid-email') {
+        return 'Please enter a valid email address.';
+      }
+
+      if (code === 'auth/too-many-requests') {
+        return 'Too many attempts. Please wait a moment and try again.';
+      }
+
+      return error?.message || 'Authentication failed. Please try again.';
+    }
+
+    authForms.forEach((form) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        setAuthMessage(form, '', null);
+
+        const mode = form.dataset.mode;
+
+        try {
+          if (mode === 'login') {
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+
+            await signInWithEmailAndPassword(auth, email, password);
+            setAuthMessage(form, 'Login successful. Redirecting...', 'success');
+            window.location.href = 'index.html';
+            return;
+          }
+
+          const firstName = document.getElementById('first-name').value.trim();
+          const lastName = document.getElementById('last-name').value.trim();
+          const username = document.getElementById('signup-username').value.trim();
+          const email = document.getElementById('signup-email').value.trim();
+          const password = document.getElementById('signup-password').value;
+          const confirmPassword = document.getElementById('confirm-password').value;
+
+          if (!username) {
+            setAuthMessage(form, 'Please enter a username.', 'error');
+            return;
+          }
+
+          const usernamePattern = /^[a-zA-Z0-9_]{3,30}$/;
+          if (!usernamePattern.test(username)) {
+            setAuthMessage(form, 'Username must be 3-30 characters and use only letters, numbers, or underscores.', 'error');
+            return;
+          }
+
+          if (password !== confirmPassword) {
+            setAuthMessage(form, 'Passwords do not match.', 'error');
+            return;
+          }
+
+          const credential = await createUserWithEmailAndPassword(auth, email, password);
+          const displayName = `${firstName} ${lastName}`.trim();
+          const uid = credential.user.uid;
+
+          if (displayName) {
+            await updateProfile(credential.user, { displayName });
+          }
+
+          await setDoc(doc(db, 'users', uid), {
+            uid,
+            firstName,
+            lastName,
+            email,
+            username,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+
+          setAuthMessage(form, 'Account created. Redirecting...', 'success');
+          window.location.href = 'index.html';
+        } catch (error) {
+          const friendlyMessage = getFriendlyAuthMessage(error);
+          setAuthMessage(form, friendlyMessage, 'error');
+        }
+      });
+    });
+
+    forgotPasswordLink.addEventListener('click', async (event) => {
+      event.preventDefault();
+
+      const loginForm = document.querySelector('.auth-form[data-mode="login"]');
+      const email = loginEmailInput.value.trim();
+
+      if (!email) {
+        setAuthMessage(loginForm, 'Enter your login email first, then click forgot password.', 'error');
+        return;
+      }
+
+      try {
+        await sendPasswordResetEmail(auth, email);
+        setAuthMessage(loginForm, 'Password reset email sent.', 'success');
+      } catch (error) {
+        const friendlyMessage = getFriendlyAuthMessage(error);
+        setAuthMessage(loginForm, friendlyMessage, 'error');
+      }
+    });
+  </script>
+
+ 
+</body>
+</html>
