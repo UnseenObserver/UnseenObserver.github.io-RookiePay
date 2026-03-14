@@ -11,8 +11,11 @@
 <body>
   <div class="container">
     <header>
-      <h1>MoneyFirst</h1>
-      <p class="subtitle">Your Personal Budget Tracker</p>
+      <div class="header-title">
+        <h1>MoneyFirst</h1>
+        <p class="subtitle">Your Personal Budget Tracker</p>
+      </div>
+      <button class="btn-settings header-settings" id="open-settings">⚙</button>
     </header>
 
     <!-- Tabs + Add Button -->
@@ -29,9 +32,17 @@
     <div class="tab-panel" data-panel="dashboard">
       <!-- Summary Cards -->
       <section class="summary">
-        <div class="card balance">
-          <span class="card-label">Balance</span>
-          <span class="card-amount" id="balance">$0.00</span>
+        <div class="summary-left">
+          <div class="card balance">
+            <span class="card-label">Balance</span>
+            <span class="card-amount" id="balance">$0.00</span>
+          </div>
+          <div class="card breakdown">
+            <span class="card-label">Category Breakdown</span>
+            <ul class="breakdown-list" id="breakdown-list">
+              <li class="empty-state">No expenses yet. Add a transaction to see breakdown.</li>
+            </ul>
+          </div>
         </div>
         <div class="card savings-goals">
           <div class="card-header">
@@ -179,6 +190,21 @@
     </section>
   </div>
 
+  <!-- Settings Sidebar -->
+  <div class="sidebar-overlay" id="sidebar-overlay" hidden></div>
+  <div class="sidebar" id="settings-sidebar" aria-hidden="true">
+    <div class="sidebar-header">
+      <h2>Settings</h2>
+      <button class="sidebar-close" id="close-settings" aria-label="Close settings">✕</button>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="sidebar-item" type="button">Account</button>
+      <button class="sidebar-item" type="button">Percentages</button>
+      <button class="sidebar-item" type="button">FAQ</button>
+      <button class="sidebar-item" type="button">Terms and Conditions</button>
+    </nav>
+  </div>
+
   <script>
     const transactions = [];
 
@@ -252,6 +278,43 @@
       const balanceEl = document.getElementById('balance');
       balanceEl.textContent = formatCurrency(balance);
       balanceEl.className = 'card-amount ' + (balance >= 0 ? 'positive' : 'negative');
+
+      updateBreakdown();
+    }
+
+    function updateBreakdown() {
+      const breakdownList = document.getElementById('breakdown-list');
+      const expenseTransactions = transactions.filter(t => t.type === 'expense');
+
+      if (expenseTransactions.length === 0) {
+        breakdownList.innerHTML = '<li class="empty-state">No expenses yet. Add a transaction to see breakdown.</li>';
+        return;
+      }
+
+      const totalsByCategory = expenseTransactions.reduce((acc, tx) => {
+        acc[tx.category] = (acc[tx.category] || 0) + tx.amount;
+        return acc;
+      }, {});
+
+      const totalExpense = Object.values(totalsByCategory).reduce((sum, v) => sum + v, 0);
+
+      breakdownList.innerHTML = Object.entries(totalsByCategory)
+        .map(([category, amount]) => {
+          const percent = totalExpense > 0 ? (amount / totalExpense) * 100 : 0;
+          return `
+            <li>
+              <div>
+                <span class="breakdown-label">${category}</span>
+                <span class="breakdown-amount">${formatCurrency(amount)}</span>
+                <div class="breakdown-bar">
+                  <div class="breakdown-fill" style="width: ${percent}%"></div>
+                </div>
+              </div>
+              <span class="progress-text">${percent.toFixed(1)}%</span>
+            </li>
+          `;
+        })
+        .join('');
     }
 
     function renderList() {
@@ -468,6 +531,23 @@
       goalForm.reset();
       toggleGoalModal(false);
     });
+
+    // Settings sidebar
+    const settingsButton = document.getElementById('open-settings');
+    const settingsSidebar = document.getElementById('settings-sidebar');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
+    const closeSettings = document.getElementById('close-settings');
+
+    function toggleSidebar(show) {
+      settingsSidebar.classList.toggle('open', show);
+      settingsSidebar.setAttribute('aria-hidden', show ? 'false' : 'true');
+      sidebarOverlay.hidden = !show;
+      document.body.style.overflow = show ? 'hidden' : '';
+    }
+
+    settingsButton.addEventListener('click', () => toggleSidebar(true));
+    closeSettings.addEventListener('click', () => toggleSidebar(false));
+    sidebarOverlay.addEventListener('click', () => toggleSidebar(false));
 
     // Initial render
     renderGoals();

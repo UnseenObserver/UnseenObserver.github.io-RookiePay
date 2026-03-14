@@ -39,9 +39,128 @@ header h1 {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 260px; /* larger gap between tabs and the add button */
+  gap: 18px;
   margin-top: 18px;
   flex-wrap: wrap;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+}
+
+.header-settings {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.header-settings:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.header-title {
+  flex: 1;
+  text-align: left;
+}
+
+.header-title h1 {
+  margin: 0;
+}
+
+.btn-settings {
+  padding: 10px 18px;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #333;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.btn-settings:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 60;
+}
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 280px;
+  background: #fff;
+  box-shadow: -12px 0 30px rgba(0, 0, 0, 0.2);
+  z-index: 70;
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+.sidebar.open {
+  transform: translateX(0);
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.sidebar-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.sidebar-close {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.sidebar-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sidebar-item {
+  background: #f0f2f5;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 12px 14px;
+  border-radius: 10px;
+  text-align: left;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.sidebar-item:hover {
+  background: rgba(79, 70, 229, 0.08);
+  border-color: rgba(79, 70, 229, 0.25);
 }
 
 .tabs {
@@ -197,9 +316,59 @@ header h1 {
 /* ── Summary Cards ── */
 .summary {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1.6fr 1fr;
   gap: 16px;
   margin-bottom: 24px; /* space before the add-transaction form */
+}
+
+.summary-left {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.breakdown-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.breakdown-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.breakdown-list li:last-child {
+  border-bottom: none;
+}
+
+.breakdown-label {
+  font-weight: 600;
+  color: #333;
+}
+
+.breakdown-amount {
+  color: #555;
+}
+
+.breakdown-bar {
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+.breakdown-fill {
+  height: 100%;
+  background: #4f46e5;
+  transition: width 0.3s;
 }
 
 .card {
