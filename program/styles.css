@@ -2308,7 +2308,7 @@ body.embedded header {
 
 .account-danger-section {
   border: 1px solid rgba(239, 68, 68, 0.25);
-  background: linear-gradient(180deg, var(--app-surface) 0%, rgba(239, 68, 68, 0.03) 100%);
+  background: var(--app-surface);
 }
 
 #delete-account-modal.modal {
