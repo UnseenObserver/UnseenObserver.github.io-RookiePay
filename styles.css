@@ -1549,12 +1549,41 @@ body.embedded header {
   text-align: center;
 }
 
+.auth-message:empty {
+  display: none;
+}
+
+.auth-message-text {
+  margin: 0;
+}
+
 .auth-message.error {
   color: #dc2626;
 }
 
 .auth-message.success {
   color: #16a34a;
+}
+
+.auth-message.password-requirements {
+  text-align: left;
+  color: var(--app-text);
+  background: var(--app-surface-soft);
+  border: 1px solid var(--app-accent-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.password-requirements-list {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 4px;
+}
+
+.password-requirements-list li {
+  color: var(--app-text);
+  line-height: 1.4;
 }
 
 .auth-submit {

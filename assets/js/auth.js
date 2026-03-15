@@ -37,12 +37,90 @@ function switchTab(isLogin) {
 
 function setAuthMessage(form, text = '', type = '') {
   const message = form.querySelector('.auth-message');
-  message.textContent = text;
   message.className = 'auth-message';
+
+  message.innerHTML = '';
+
+  if (!text) {
+    return;
+  }
+
+  const messageText = document.createElement('p');
+  messageText.className = 'auth-message-text';
+  messageText.textContent = text;
+  message.append(messageText);
 
   if (type) {
     message.classList.add(type);
   }
+}
+
+function setPasswordRequirementMessage(form, title, requirements = []) {
+  const message = form.querySelector('.auth-message');
+  message.className = 'auth-message error password-requirements';
+  message.innerHTML = '';
+
+  const messageTitle = document.createElement('p');
+  messageTitle.className = 'auth-message-text';
+  messageTitle.textContent = title;
+  message.append(messageTitle);
+
+  if (!requirements.length) {
+    return;
+  }
+
+  const requirementList = document.createElement('ul');
+  requirementList.className = 'password-requirements-list';
+
+  requirements.forEach((requirement) => {
+    const item = document.createElement('li');
+    item.textContent = requirement;
+    requirementList.append(item);
+  });
+
+  message.append(requirementList);
+}
+
+function getPasswordRequirements(error) {
+  const message = (error?.message || '').toLowerCase();
+  const requirements = [];
+
+  if (message.includes('6 characters') || message.includes('at least 6')) {
+    requirements.push('Use at least 6 characters.');
+  }
+
+  if (message.includes('uppercase')) {
+    requirements.push('Include at least 1 uppercase letter.');
+  }
+
+  if (message.includes('lowercase')) {
+    requirements.push('Include at least 1 lowercase letter.');
+  }
+
+  if (message.includes('number') || message.includes('digit')) {
+    requirements.push('Include at least 1 number.');
+  }
+
+  if (message.includes('special') || message.includes('symbol')) {
+    requirements.push('Include at least 1 special character.');
+  }
+
+  if (message.includes('different')) {
+    requirements.push('Choose a password different from recent passwords.');
+  }
+
+  return requirements.length ? requirements : ['Use at least 6 characters.'];
+}
+
+function isPasswordRequirementError(error) {
+  const code = error?.code;
+  const message = (error?.message || '').toLowerCase();
+
+  return code === 'auth/weak-password'
+    || code === 'auth/password-does-not-meet-requirements'
+    || message.includes('password should')
+    || message.includes('password must')
+    || message.includes('password requirement');
 }
 
 function getFriendlyAuthMessage(error) {
@@ -167,6 +245,16 @@ async function handleFormSubmit(event) {
   } catch (error) {
     console.error('Authentication failed:', error);
     isAuthFlowInProgress = false;
+
+    if (form.dataset.mode === 'signup' && isPasswordRequirementError(error)) {
+      setPasswordRequirementMessage(
+        form,
+        'Please update your password to meet Firebase requirements:',
+        getPasswordRequirements(error)
+      );
+      return;
+    }
+
     setAuthMessage(form, getFriendlyAuthMessage(error), 'error');
   }
 }
