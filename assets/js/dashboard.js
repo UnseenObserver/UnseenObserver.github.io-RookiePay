@@ -69,10 +69,10 @@ const DEFAULT_SPLIT_RATIOS = {
   ],
   savingsGoalCategories: [],
   billCategories: [
-    { name: 'Insurance', amount: 120 },
-    { name: 'Subscriptions', amount: 35 },
-    { name: 'Gas', amount: 100 },
-    { name: 'Utilities', amount: 140 }
+    { name: 'Insurance', amount: 0 },
+    { name: 'Subscriptions', amount: 0 },
+    { name: 'Gas', amount: 0 },
+    { name: 'Utilities', amount: 0 }
   ]
 };
 let splitRatios = DEFAULT_SPLIT_RATIOS;
