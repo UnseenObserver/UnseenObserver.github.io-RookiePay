@@ -288,6 +288,69 @@ function renderRoleSwitchControl(role = 'solo') {
   }
 }
 
+function withFamilyOwnerUid(members = [], familyOwnerUid = '') {
+  return members.map((member) => ({
+    ...member,
+    familyOwnerUid
+  }));
+}
+
+function mergeFamilyMembersByRoleAndUid(memberGroups = [], preferredOwnerUid = '') {
+  const mergedByKey = new Map();
+
+  memberGroups.flat().forEach((member) => {
+    const uid = String(member?.uid || '').trim();
+    const role = String(member?.role || '').trim();
+
+    if (!uid || !role) {
+      return;
+    }
+
+    const key = `${role}:${uid}`;
+    const existing = mergedByKey.get(key);
+
+    if (!existing) {
+      mergedByKey.set(key, member);
+      return;
+    }
+
+    const existingIsPreferred = existing.familyOwnerUid === preferredOwnerUid;
+    const incomingIsPreferred = member.familyOwnerUid === preferredOwnerUid;
+
+    if (!existingIsPreferred && incomingIsPreferred) {
+      mergedByKey.set(key, member);
+    }
+  });
+
+  return Array.from(mergedByKey.values());
+}
+
+async function listParentNetworkMembers(parentUid) {
+  if (!parentUid) {
+    return [];
+  }
+
+  const rootMembers = await listFamilyMembers(parentUid);
+  const linkedParentIds = Array.from(new Set([
+    parentUid,
+    ...rootMembers
+      .filter((member) => member.role === 'parent' && member.status === 'active' && member.uid)
+      .map((member) => member.uid)
+  ]));
+
+  const networkMemberGroups = await Promise.all(linkedParentIds.map(async (ownerUid) => {
+    try {
+      const members = await listFamilyMembers(ownerUid);
+      return withFamilyOwnerUid(members, ownerUid);
+    } catch (error) {
+      console.error('Failed to load linked parent family members:', error);
+      return [];
+    }
+  }));
+
+  return mergeFamilyMembersByRoleAndUid(networkMemberGroups, parentUid);
+}
+
 function renderParentFamilyPanel() {
   const familyName = currentFamily?.name || buildDisplayName(currentUserProfile?.firstName, currentUserProfile?.lastName) || 'Parent Account';
   const inviteCode = currentFamily?.inviteCode || '------';
@@ -327,6 +390,7 @@ function renderParentFamilyPanel() {
     const permissions = member.permissions || {};
     const safeName = escapeHtml(member.displayName || member.email || 'Child Account');
     const safeEmail = escapeHtml(member.email || 'No email available');
+    const sourceFamilyId = escapeHtml(member.familyOwnerUid || currentUser?.uid || '');
 
     return `
       <li class="family-member-card">
@@ -335,23 +399,23 @@ function renderParentFamilyPanel() {
             <strong>${safeName}</strong>
             <p>${safeEmail}</p>
           </div>
-          <button type="button" class="btn-delete" data-family-action="remove-child" data-member-id="${member.uid}">Remove</button>
+          <button type="button" class="btn-delete" data-family-action="remove-child" data-member-id="${member.uid}" data-source-family-id="${sourceFamilyId}">Remove</button>
         </div>
         <div class="family-permissions-grid">
           <label class="family-permission-toggle">
-            <input type="checkbox" data-family-action="toggle-permission" data-member-id="${member.uid}" data-permission="canViewDashboardSummary" ${permissions.canViewDashboardSummary ? 'checked' : ''} />
+            <input type="checkbox" data-family-action="toggle-permission" data-member-id="${member.uid}" data-source-family-id="${sourceFamilyId}" data-permission="canViewDashboardSummary" ${permissions.canViewDashboardSummary ? 'checked' : ''} />
             <span>Summary</span>
           </label>
           <label class="family-permission-toggle">
-            <input type="checkbox" data-family-action="toggle-permission" data-member-id="${member.uid}" data-permission="canViewTransactions" ${permissions.canViewTransactions ? 'checked' : ''} />
+            <input type="checkbox" data-family-action="toggle-permission" data-member-id="${member.uid}" data-source-family-id="${sourceFamilyId}" data-permission="canViewTransactions" ${permissions.canViewTransactions ? 'checked' : ''} />
             <span>Transactions</span>
           </label>
           <label class="family-permission-toggle">
-            <input type="checkbox" data-family-action="toggle-permission" data-member-id="${member.uid}" data-permission="canViewGoals" ${permissions.canViewGoals ? 'checked' : ''} />
+            <input type="checkbox" data-family-action="toggle-permission" data-member-id="${member.uid}" data-source-family-id="${sourceFamilyId}" data-permission="canViewGoals" ${permissions.canViewGoals ? 'checked' : ''} />
             <span>Goals</span>
           </label>
           <label class="family-permission-toggle">
-            <input type="checkbox" data-family-action="toggle-permission" data-member-id="${member.uid}" data-permission="canViewSplitRatios" ${permissions.canViewSplitRatios ? 'checked' : ''} />
+            <input type="checkbox" data-family-action="toggle-permission" data-member-id="${member.uid}" data-source-family-id="${sourceFamilyId}" data-permission="canViewSplitRatios" ${permissions.canViewSplitRatios ? 'checked' : ''} />
             <span>Split Ratios</span>
           </label>
         </div>
@@ -426,7 +490,7 @@ async function loadFamilySettings(profile) {
 
     try {
       currentFamily = await getFamilyById(parentUid);
-      currentFamilyMembers = await listFamilyMembers(parentUid);
+      currentFamilyMembers = await listParentNetworkMembers(parentUid);
 
       if (!currentFamilyMembers.some((member) => member.uid === parentUid && member.role === 'parent')) {
         await setDoc(doc(db, 'users', parentUid, 'familyMembers', parentUid), {
@@ -438,7 +502,7 @@ async function loadFamilySettings(profile) {
           joinedAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         }, { merge: true });
-        currentFamilyMembers = await listFamilyMembers(parentUid);
+        currentFamilyMembers = await listParentNetworkMembers(parentUid);
       }
     } catch (error) {
       console.error('Failed to load parent family settings:', error);
@@ -568,6 +632,7 @@ async function handleFamilyChildrenInteraction(event) {
   }
 
   const memberId = actionTarget.dataset.memberId;
+  const sourceFamilyId = actionTarget.dataset.sourceFamilyId || currentUser.uid;
   const action = actionTarget.dataset.familyAction;
 
   if (!memberId) {
@@ -577,12 +642,12 @@ async function handleFamilyChildrenInteraction(event) {
   try {
     if (action === 'toggle-permission' && actionTarget.matches('input[type="checkbox"]')) {
       const permission = actionTarget.dataset.permission;
-      await updateDoc(doc(db, 'users', currentUser.uid, 'familyMembers', memberId), {
+      await updateDoc(doc(db, 'users', sourceFamilyId, 'familyMembers', memberId), {
         [`permissions.${permission}`]: actionTarget.checked,
         updatedAt: serverTimestamp()
       });
 
-      const member = currentFamilyMembers.find((entry) => entry.uid === memberId);
+      const member = currentFamilyMembers.find((entry) => entry.uid === memberId && (entry.familyOwnerUid || currentUser.uid) === sourceFamilyId);
       if (member) {
         member.permissions = {
           ...(member.permissions || {}),
@@ -599,7 +664,7 @@ async function handleFamilyChildrenInteraction(event) {
         return;
       }
 
-      await deleteDoc(doc(db, 'users', currentUser.uid, 'familyMembers', memberId));
+      await deleteDoc(doc(db, 'users', sourceFamilyId, 'familyMembers', memberId));
       await updateDoc(doc(db, 'users', memberId), {
         role: 'solo',
         primaryFamilyId: null,
@@ -608,7 +673,7 @@ async function handleFamilyChildrenInteraction(event) {
         updatedAt: serverTimestamp()
       });
 
-      currentFamilyMembers = currentFamilyMembers.filter((member) => member.uid !== memberId);
+      currentFamilyMembers = currentFamilyMembers.filter((member) => !(member.uid === memberId && (member.familyOwnerUid || currentUser.uid) === sourceFamilyId));
       renderFamilySection();
       setFamilyMessage('Child removed from the family portal.', 'success');
     }
