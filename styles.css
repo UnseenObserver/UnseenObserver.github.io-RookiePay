@@ -97,6 +97,12 @@ header h1 {
   gap: 10px;
 }
 
+.header-logo {
+  height: 70px; /* adjust as needed */
+  width: auto;
+  display: block;
+}
+
 #user-email {
   font-size: 0.9rem;
   color: #4b5563;
