@@ -23,6 +23,10 @@
   --app-surface-muted: #f8f9fa;
   --app-border: rgba(0, 0, 0, 0.12);
   --app-card-text: #1a1a2e;
+  --app-income: #22c55e;
+  --app-income-hover: #16a34a;
+  --app-expense: #ef4444;
+  --app-expense-hover: #dc2626;
 }
 
 html {
@@ -126,6 +130,20 @@ header h1 {
 
 .page-message.success {
   color: #16a34a;
+}
+
+.dashboard-page .history-header .page-message {
+  min-height: 0;
+  text-align: right;
+  font-size: 0.85rem;
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  margin-left: auto;
+  margin-right: 10px;
+  flex: 0 1 320px;
 }
 
 /* ── Tabs ── */
@@ -372,6 +390,49 @@ header {
   flex-wrap: wrap;
 }
 
+.dashboard-quick-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.btn-quick-transaction {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 1.2rem;
+  line-height: 1;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s, background 0.2s;
+}
+
+.btn-quick-transaction:active {
+  transform: scale(0.98);
+}
+
+.btn-quick-income {
+  background: var(--app-income);
+}
+
+.btn-quick-income:hover {
+  background: var(--app-income-hover);
+}
+
+.btn-quick-expense {
+  background: var(--app-expense);
+}
+
+.btn-quick-expense:hover {
+  background: var(--app-expense-hover);
+}
+
 .tab {
   padding: 10px 18px;
   border-radius: 999px;
@@ -493,6 +554,26 @@ body.embedded header {
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
   padding: 22px 22px 18px;
   z-index: 1;
+}
+
+#add-modal .modal-content,
+#add-goal-modal .modal-content {
+  position: fixed;
+  width: min(420px, calc(100vw - 24px));
+  max-height: min(76vh, 620px);
+  overflow-y: auto;
+}
+
+#add-modal.modal,
+#add-goal-modal.modal {
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 0;
+}
+
+#add-modal .modal-backdrop,
+#add-goal-modal .modal-backdrop {
+  display: none;
 }
 
 .modal-header {
@@ -959,15 +1040,13 @@ body.embedded header {
 
 .form-group input[type="number"]::-webkit-inner-spin-button,
 .form-group input[type="number"]::-webkit-outer-spin-button {
-  opacity: 1;
-  background: var(--app-surface-muted);
-  border-left: 1px solid var(--app-border);
-  cursor: pointer;
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .form-group input[type="number"] {
-  -moz-appearance: auto;
-  appearance: auto;
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 .form-group textarea {
@@ -997,6 +1076,7 @@ body.embedded header {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
 .dollar-sign {
@@ -1008,7 +1088,63 @@ body.embedded header {
 }
 
 .amount-input input {
+  width: 100%;
   padding-left: 24px; /* space for $ */
+  padding-right: 40px;
+}
+
+.amount-stepper {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1.5px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface-soft);
+  overflow: hidden;
+}
+
+.amount-step-btn {
+  width: 20px;
+  height: 12px;
+  border: none;
+  background: transparent;
+  color: var(--app-muted);
+  font-size: 0.56rem;
+  font-weight: 600;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.amount-step-btn + .amount-step-btn {
+  border-top: 1px solid var(--app-border);
+}
+
+.amount-step-btn:hover {
+  background: var(--app-surface-muted);
+  color: var(--app-text);
+}
+
+.amount-step-btn:active {
+  background: var(--app-surface);
+}
+
+.amount-step-btn:focus-visible {
+  outline: 2px solid var(--app-accent-soft-strong);
+  outline-offset: 1px;
+}
+
+.amount-input input:disabled + .amount-stepper .amount-step-btn {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .btn-add {
@@ -1030,9 +1166,13 @@ body.embedded header {
 /* ── History Section ── */
 .history-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+}
+
+.history-header h2 {
+  margin-bottom: 0;
+  margin-right: auto;
 }
 
 .btn-clear {
@@ -2040,6 +2180,48 @@ body.embedded header {
   padding-top: 4px;
 }
 
+.account-danger-section {
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  background: linear-gradient(180deg, var(--app-surface) 0%, rgba(239, 68, 68, 0.03) 100%);
+}
+
+#delete-account-modal.modal {
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding-top: var(--delete-account-modal-top, 0px);
+  padding-left: var(--delete-account-modal-left, 0px);
+}
+
+#delete-account-modal .modal-backdrop {
+  display: none;
+}
+
+#delete-account-modal .modal-content {
+  width: min(400px, calc(100vw - 20px));
+  max-height: min(72vh, 520px);
+  overflow-y: auto;
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.22);
+}
+
+.btn-danger {
+  padding: 10px 18px;
+  background: #ef4444;
+  border: 1px solid #ef4444;
+  color: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+}
+
+.btn-danger:active {
+  transform: scale(0.98);
+}
+
 /* ── System dark mode (no saved theme in localStorage) ── */
 @media (prefers-color-scheme: dark) {
   :root {
@@ -2379,6 +2561,11 @@ body.embedded header {
     min-width: 0;
   }
 
+  .dashboard-page .history-header .page-message {
+    max-width: 100%;
+    flex: 1 1 100%;
+  }
+
   .header-greeting {
     font-size: 0.85rem;
     white-space: normal;
@@ -2426,6 +2613,13 @@ body.embedded header {
     gap: 10px;
   }
 
+  .dashboard-page .history-header .page-message {
+    max-width: 52vw;
+    flex: 0 1 auto;
+    margin-left: auto;
+    margin-right: 8px;
+  }
+
   .transaction-item {
     flex-direction: column;
     align-items: flex-start;
@@ -2469,6 +2663,17 @@ body.embedded header {
   .modal-content {
     width: min(400px, calc(100vw - 16px));
     padding: 18px 14px 14px;
+  }
+
+  #add-modal .modal-content,
+  #add-goal-modal .modal-content {
+    width: min(340px, 88vw);
+    max-height: 74vh;
+  }
+
+  #delete-account-modal .modal-content {
+    width: min(340px, 88vw);
+    max-height: 72vh;
   }
 
   .modal-actions {

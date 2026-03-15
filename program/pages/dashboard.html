@@ -34,14 +34,13 @@
           </div>
           <nav class="settings-menu-list">
             <button class="settings-menu-item" type="button" data-subpage="faq.html" data-subpage-label="FAQ">FAQ</button>
+            <button class="settings-menu-item" type="button" data-subpage="contact.html" data-subpage-label="Contact">Contact</button>
             <button class="settings-menu-item" type="button" data-subpage="terms.html" data-subpage-label="Terms &amp; Conditions">Terms and Conditions</button>
             <button class="settings-menu-item settings-menu-item-danger" id="logout-btn" type="button">Logout</button>
           </nav>
         </div>
       </div>
     </header>
-
-    <p class="page-message" id="page-message" aria-live="polite"></p>
 
     <!-- Tabs + Add Button -->
     <div class="tab-row">
@@ -60,7 +59,10 @@
           <div class="card balance">
             <div class="card-header">
               <span class="card-label">Balance</span>
-              <button class="btn-add-goal btn-add-transaction" id="open-add-modal" type="button" aria-label="Add transaction">+</button>
+              <div class="dashboard-quick-actions" aria-label="Quick transaction actions">
+                <button class="btn-quick-transaction btn-quick-income" id="open-add-income-modal" type="button" aria-label="Add income">+</button>
+                <button class="btn-quick-transaction btn-quick-expense" id="open-add-expense-modal" type="button" aria-label="Add expense">-</button>
+              </div>
             </div>
             <span class="card-amount" id="balance">$0.00</span>
           </div>
@@ -95,11 +97,6 @@
       <div class="modal-content">
         <div class="modal-header">
           <h2 id="modal-title">Add Transaction</h2>
-          <button class="modal-close" type="button" aria-label="Close" data-close="true">✕</button>
-        </div>
-        <div class="transaction-tabs">
-          <button class="transaction-tab active" data-type="income">Income</button>
-          <button class="transaction-tab" data-type="expense">Expense</button>
         </div>
         <form id="transaction-form">
           <!-- Income Fields -->
@@ -202,6 +199,7 @@
       <section class="history-section">
         <div class="history-header">
           <h2>Transaction History</h2>
+          <p class="page-message" id="page-message" aria-live="polite"></p>
           <button class="btn-clear" id="clear-btn">Clear All</button>
         </div>
         <ul id="transaction-list">

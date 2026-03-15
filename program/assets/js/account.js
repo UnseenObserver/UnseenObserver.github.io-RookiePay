@@ -10,18 +10,24 @@ import {
   normalizeInviteCode
 } from './family.js';
 import {
+  EmailAuthProvider,
+  deleteUser,
   onAuthStateChanged,
+  reauthenticateWithCredential,
   sendPasswordResetEmail,
   updateEmail,
   updateProfile
 } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js';
 import {
+  collection,
   deleteDoc,
-  setDoc,
   doc,
   getDoc,
+  getDocs,
   serverTimestamp,
-  updateDoc
+  setDoc,
+  updateDoc,
+  writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
 
 const elements = {
@@ -73,7 +79,12 @@ const elements = {
   profilePhotoOffsetXInput: document.getElementById('profile-photo-offset-x'),
   profilePhotoOffsetYInput: document.getElementById('profile-photo-offset-y'),
   profilePhotoApplyButton: document.getElementById('profile-photo-apply-btn'),
-  profilePhotoResetButton: document.getElementById('profile-photo-reset-btn')
+  profilePhotoResetButton: document.getElementById('profile-photo-reset-btn'),
+  openDeleteAccountModalButton: document.getElementById('open-delete-account-modal'),
+  deleteAccountModal: document.getElementById('delete-account-modal'),
+  deleteAccountPasswordInput: document.getElementById('delete-account-password'),
+  deleteAccountMessage: document.getElementById('delete-account-message'),
+  confirmDeleteAccountButton: document.getElementById('confirm-delete-account')
 };
 
 let currentUser = null;
@@ -1034,6 +1045,168 @@ function setPageMessage(text = '', type = '') {
   }
 }
 
+function setDeleteAccountMessage(text = '', type = '') {
+  if (!elements.deleteAccountMessage) {
+    return;
+  }
+
+  elements.deleteAccountMessage.textContent = text;
+  elements.deleteAccountMessage.className = 'page-message family-inline-message';
+
+  if (type) {
+    elements.deleteAccountMessage.classList.add(type);
+  }
+}
+
+function positionDeleteAccountModal() {
+  if (!elements.deleteAccountModal || !elements.openDeleteAccountModalButton) {
+    return;
+  }
+
+  const modalContent = elements.deleteAccountModal.querySelector('.modal-content');
+
+  if (!modalContent) {
+    return;
+  }
+
+  const buttonRect = elements.openDeleteAccountModalButton.getBoundingClientRect();
+  const modalRect = modalContent.getBoundingClientRect();
+  const modalWidth = modalRect.width || 380;
+  const modalHeight = modalRect.height || 320;
+  const margin = 10;
+  const gap = 8;
+
+  let left = buttonRect.right - modalWidth;
+  left = Math.max(margin, Math.min(left, window.innerWidth - modalWidth - margin));
+
+  let top = buttonRect.bottom + gap;
+  if (top + modalHeight > window.innerHeight - margin) {
+    top = buttonRect.top - modalHeight - gap;
+  }
+  top = Math.max(margin, Math.min(top, window.innerHeight - modalHeight - margin));
+
+  elements.deleteAccountModal.style.setProperty('--delete-account-modal-left', `${Math.round(left)}px`);
+  elements.deleteAccountModal.style.setProperty('--delete-account-modal-top', `${Math.round(top)}px`);
+}
+
+function setDeleteAccountModalOpen(show) {
+  if (!elements.deleteAccountModal) {
+    return;
+  }
+
+  elements.deleteAccountModal.hidden = !show;
+
+  if (show) {
+    setDeleteAccountMessage('');
+    positionDeleteAccountModal();
+    if (elements.deleteAccountPasswordInput) {
+      elements.deleteAccountPasswordInput.value = '';
+      elements.deleteAccountPasswordInput.focus();
+    }
+  }
+}
+
+async function deleteAllDocsInUserSubcollection(userId, subcollectionName) {
+  const subcollectionRef = collection(db, 'users', userId, subcollectionName);
+  const snapshot = await getDocs(subcollectionRef);
+
+  if (snapshot.empty) {
+    return;
+  }
+
+  const batch = writeBatch(db);
+  snapshot.docs.forEach((entry) => batch.delete(entry.ref));
+  await batch.commit();
+}
+
+async function cleanupFamilyLinksBeforeDelete(user, profile) {
+  const role = profile?.role || 'solo';
+  const primaryFamilyId = profile?.primaryFamilyId || null;
+
+  if (role === 'child' && primaryFamilyId) {
+    await deleteDoc(doc(db, 'users', primaryFamilyId, 'familyMembers', user.uid));
+    return;
+  }
+
+  if (role === 'parent') {
+    const members = await listFamilyMembers(user.uid);
+    const childMembers = members.filter((member) => member.role === 'child' && member.status === 'active');
+    const parentMembers = members.filter((member) => member.role === 'parent' && member.uid !== user.uid);
+
+    const childUpdateWrites = childMembers.map((member) => updateDoc(doc(db, 'users', member.uid), {
+      role: 'solo',
+      primaryFamilyId: null,
+      updatedAt: serverTimestamp()
+    }));
+
+    const parentRemovalWrites = parentMembers.map((member) => deleteDoc(doc(db, 'users', member.uid, 'familyMembers', user.uid)));
+
+    await Promise.all([...childUpdateWrites, ...parentRemovalWrites]);
+  }
+}
+
+async function deleteUserOwnedData(userId) {
+  await Promise.all([
+    deleteAllDocsInUserSubcollection(userId, 'transactions'),
+    deleteAllDocsInUserSubcollection(userId, 'savingsGoals'),
+    deleteAllDocsInUserSubcollection(userId, 'familyMembers')
+  ]);
+
+  await Promise.all([
+    deleteDoc(doc(db, 'users', userId, 'splitRatios', 'current')),
+    deleteDoc(doc(db, 'users', userId, 'splitRatios', 'percentageCategories')),
+    deleteDoc(doc(db, 'users', userId, 'splitRatios', 'billCategories')),
+    deleteDoc(doc(db, 'users', userId))
+  ]);
+}
+
+async function handleDeleteAccount() {
+  if (!currentUser || !currentUser.email) {
+    setDeleteAccountMessage('You must be signed in to delete your account.', 'error');
+    return;
+  }
+
+  const password = String(elements.deleteAccountPasswordInput?.value || '');
+
+  if (!password) {
+    setDeleteAccountMessage('Please enter your password to continue.', 'error');
+    return;
+  }
+
+  elements.confirmDeleteAccountButton.disabled = true;
+  elements.deleteAccountPasswordInput.disabled = true;
+  setFormDisabled(true);
+  setDeleteAccountMessage('Verifying password and deleting account…');
+
+  try {
+    const credential = EmailAuthProvider.credential(currentUser.email, password);
+    await reauthenticateWithCredential(currentUser, credential);
+
+    await cleanupFamilyLinksBeforeDelete(currentUser, currentUserProfile);
+    await deleteUserOwnedData(currentUser.uid);
+
+    saveLocalProfilePhoto(currentUser.uid, '');
+    localStorage.removeItem('goals');
+
+    await deleteUser(currentUser);
+    window.location.replace('login.html?accountDeleted=1');
+  } catch (error) {
+    console.error('Failed to delete account:', error);
+
+    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+      setDeleteAccountMessage('Password is incorrect. Please try again.', 'error');
+    } else if (error.code === 'auth/too-many-requests') {
+      setDeleteAccountMessage('Too many attempts. Please wait a moment and try again.', 'error');
+    } else {
+      setDeleteAccountMessage('Could not delete your account right now. Please try again.', 'error');
+    }
+  } finally {
+    elements.confirmDeleteAccountButton.disabled = false;
+    elements.deleteAccountPasswordInput.disabled = false;
+    setFormDisabled(false);
+  }
+}
+
 function setFormDisabled(disabled) {
   elements.saveButton.disabled = disabled;
   elements.firstNameInput.disabled = disabled;
@@ -1049,6 +1222,15 @@ function setFormDisabled(disabled) {
   elements.roleSwitchVerifyInput.disabled = disabled;
   elements.roleSwitchCancelButton.disabled = disabled;
   elements.roleSwitchApplyButton.disabled = disabled;
+  if (elements.openDeleteAccountModalButton) {
+    elements.openDeleteAccountModalButton.disabled = disabled;
+  }
+  if (elements.confirmDeleteAccountButton) {
+    elements.confirmDeleteAccountButton.disabled = disabled;
+  }
+  if (elements.deleteAccountPasswordInput) {
+    elements.deleteAccountPasswordInput.disabled = disabled;
+  }
   setProfilePhotoEditingDisabled(disabled);
 }
 
@@ -1314,6 +1496,63 @@ function setupFamilyListeners() {
   elements.familyChildrenList.addEventListener('change', handleFamilyChildrenInteraction);
 }
 
+function setupDeleteAccountListeners() {
+  if (!elements.openDeleteAccountModalButton || !elements.deleteAccountModal || !elements.confirmDeleteAccountButton) {
+    return;
+  }
+
+  elements.openDeleteAccountModalButton.addEventListener('click', () => {
+    setDeleteAccountModalOpen(true);
+  });
+
+  elements.deleteAccountModal.addEventListener('click', (event) => {
+    if (event.target.closest('[data-delete-close]')) {
+      setDeleteAccountModalOpen(false);
+    }
+  });
+
+  elements.deleteAccountPasswordInput?.addEventListener('keydown', async (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      await handleDeleteAccount();
+    }
+  });
+
+  elements.confirmDeleteAccountButton.addEventListener('click', handleDeleteAccount);
+
+  document.addEventListener('click', (event) => {
+    if (elements.deleteAccountModal.hidden) {
+      return;
+    }
+
+    const modalContent = elements.deleteAccountModal.querySelector('.modal-content');
+    const clickedInsideModal = modalContent?.contains(event.target);
+    const clickedOpenButton = elements.openDeleteAccountModalButton.contains(event.target);
+
+    if (!clickedInsideModal && !clickedOpenButton) {
+      setDeleteAccountModalOpen(false);
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && elements.deleteAccountModal && !elements.deleteAccountModal.hidden) {
+      setDeleteAccountModalOpen(false);
+    }
+  });
+
+  window.addEventListener('resize', () => {
+    if (elements.deleteAccountModal && !elements.deleteAccountModal.hidden) {
+      positionDeleteAccountModal();
+    }
+  });
+
+  window.addEventListener('scroll', () => {
+    if (elements.deleteAccountModal && !elements.deleteAccountModal.hidden) {
+      positionDeleteAccountModal();
+    }
+  }, true);
+}
+
 async function handleResetPassword() {
   if (!currentUser?.email) {
     setPageMessage('No email address is associated with this account.', 'error');
@@ -1347,5 +1586,6 @@ elements.form.addEventListener('submit', handleSave);
 elements.resetPasswordButton.addEventListener('click', handleResetPassword);
 setupProfilePhotoListeners();
 setupFamilyListeners();
+setupDeleteAccountListeners();
 
 onAuthStateChanged(auth, handleAuthStateChanged);

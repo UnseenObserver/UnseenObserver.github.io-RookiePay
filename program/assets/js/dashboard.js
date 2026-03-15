@@ -19,12 +19,13 @@ const elements = {
   list: document.getElementById('transaction-list'),
   clearButton: document.getElementById('clear-btn'),
   modal: document.getElementById('add-modal'),
-  openModalButton: document.getElementById('open-add-modal'),
+  openIncomeModalButton: document.getElementById('open-add-income-modal'),
+  openExpenseModalButton: document.getElementById('open-add-expense-modal'),
   tabs: document.querySelectorAll('.tab'),
   panels: document.querySelectorAll('.tab-panel'),
-  transactionTabs: document.querySelectorAll('.transaction-tab'),
   incomeFields: document.querySelector('.income-fields'),
   expenseFields: document.querySelector('.expense-fields'),
+  transactionModalTitle: document.getElementById('modal-title'),
   balance: document.getElementById('balance'),
   breakdownList: document.getElementById('breakdown-list'),
   openPercentagesButton: document.getElementById('open-percentages'),
@@ -62,6 +63,7 @@ const elements = {
 
 let transactions = [];
 let currentUser = null;
+let activeTransactionModalType = 'income';
 let unsubscribeTransactions = null;
 let unsubscribeGoals = null;
 let splitRatioRefreshIntervalId = null;
@@ -71,10 +73,13 @@ let lastPersistedSavingsAllocations = {};
 let subPageTab = null;
 let subPagePanel = null;
 let goalMessageTimeoutId = null;
+let pageMessageTimeoutId = null;
 let subPagePrevActiveTab = 'dashboard';
 let subPageHeightSyncIntervalId = null;
 let pageSwitchTimeoutId = null;
 let pageSwitchCleanupTimeoutId = null;
+let transactionModalAnchor = null;
+let goalModalAnchor = null;
 const PAGE_SWITCH_FADE_MS = 110;
 const DEFAULT_SPLIT_RATIOS = {
   percentageCategories: [
@@ -143,12 +148,122 @@ function setPageMessage(text = '', type = '') {
     return;
   }
 
+  if (pageMessageTimeoutId) {
+    clearTimeout(pageMessageTimeoutId);
+    pageMessageTimeoutId = null;
+  }
+
   elements.pageMessage.textContent = text;
   elements.pageMessage.className = 'page-message';
 
   if (type) {
     elements.pageMessage.classList.add(type);
   }
+
+  if (text) {
+    pageMessageTimeoutId = setTimeout(() => {
+      elements.pageMessage.textContent = '';
+      elements.pageMessage.className = 'page-message';
+      pageMessageTimeoutId = null;
+    }, 10000);
+  }
+}
+
+function formatTransactionTimestamp(dateValue) {
+  if (!(dateValue instanceof Date) || Number.isNaN(dateValue.getTime())) {
+    return '';
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  }).format(dateValue);
+}
+
+function formatMoneyInputOnBlur(inputElement) {
+  if (!inputElement) {
+    return;
+  }
+
+  const rawValue = String(inputElement.value || '').trim();
+
+  if (!rawValue) {
+    return;
+  }
+
+  const normalized = Number(rawValue.replace(/,/g, ''));
+
+  if (!Number.isFinite(normalized)) {
+    inputElement.value = '';
+    return;
+  }
+
+  inputElement.value = normalized.toFixed(2);
+}
+
+function stepAmountInput(inputElement, direction) {
+  if (!inputElement || inputElement.disabled || inputElement.readOnly) {
+    return;
+  }
+
+  const parsedValue = Number.parseFloat(String(inputElement.value || '').replace(/,/g, ''));
+  const min = Number.parseFloat(inputElement.min);
+  const max = Number.parseFloat(inputElement.max);
+
+  const currentValue = Number.isFinite(parsedValue)
+    ? parsedValue
+    : 0;
+
+  let nextValue = currentValue + (direction > 0 ? 1 : -1);
+
+  if (Number.isFinite(min)) {
+    nextValue = Math.max(min, nextValue);
+  }
+
+  if (Number.isFinite(max)) {
+    nextValue = Math.min(max, nextValue);
+  }
+
+  inputElement.value = nextValue.toFixed(2);
+
+  inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+  inputElement.dispatchEvent(new Event('change', { bubbles: true }));
+  inputElement.focus();
+}
+
+function setupAmountSteppers() {
+  const amountInputs = document.querySelectorAll('.amount-input input[type="number"]');
+
+  amountInputs.forEach((inputElement) => {
+    const wrapper = inputElement.closest('.amount-input');
+
+    if (!wrapper || wrapper.querySelector('.amount-stepper')) {
+      return;
+    }
+
+    const stepper = document.createElement('div');
+    stepper.className = 'amount-stepper';
+
+    const increaseButton = document.createElement('button');
+    increaseButton.type = 'button';
+    increaseButton.className = 'amount-step-btn amount-step-up';
+    increaseButton.setAttribute('aria-label', 'Increase amount');
+    increaseButton.textContent = '▲';
+
+    const decreaseButton = document.createElement('button');
+    decreaseButton.type = 'button';
+    decreaseButton.className = 'amount-step-btn amount-step-down';
+    decreaseButton.setAttribute('aria-label', 'Decrease amount');
+    decreaseButton.textContent = '▼';
+
+    increaseButton.addEventListener('click', () => stepAmountInput(inputElement, 1));
+    decreaseButton.addEventListener('click', () => stepAmountInput(inputElement, -1));
+
+    stepper.append(increaseButton, decreaseButton);
+    inputElement.insertAdjacentElement('afterend', stepper);
+  });
 }
 
 function updateSummary() {
@@ -508,35 +623,130 @@ function renderList() {
     return;
   }
 
-  elements.list.innerHTML = transactions.map((transaction) => `
+  elements.list.innerHTML = transactions.map((transaction) => {
+    const timestampLabel = formatTransactionTimestamp(transaction.createdAtDate);
+    return `
     <li class="transaction-item ${transaction.type}">
       <div class="transaction-info">
         <span class="transaction-desc">${escapeHtml(transaction.description)}</span>
-        <span class="transaction-category">${escapeHtml(transaction.category)}</span>
+        <span class="transaction-category">${escapeHtml(transaction.category)}${timestampLabel ? ` • ${escapeHtml(timestampLabel)}` : ''}</span>
       </div>
       <div class="transaction-right">
         <span class="transaction-amount">${transaction.type === 'income' ? '+' : '-'}${formatCurrency(transaction.amount)}</span>
         <button class="btn-delete" type="button" data-id="${escapeHtml(transaction.id)}" aria-label="Delete ${escapeHtml(transaction.description)}">✕</button>
       </div>
     </li>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function setTransactionTab(type) {
-  elements.transactionTabs.forEach((tab) => {
-    tab.classList.toggle('active', tab.dataset.type === type);
-  });
+  activeTransactionModalType = type === 'expense' ? 'expense' : 'income';
 
-  elements.incomeFields.style.display = type === 'income' ? 'grid' : 'none';
-  elements.expenseFields.style.display = type === 'expense' ? 'grid' : 'none';
+  elements.incomeFields.style.display = activeTransactionModalType === 'income' ? 'grid' : 'none';
+  elements.expenseFields.style.display = activeTransactionModalType === 'expense' ? 'grid' : 'none';
+
+  const incomeAmountInput = document.getElementById('amount');
+  const expenseTitleInput = document.getElementById('expense-title');
+  const expenseAmountInput = document.getElementById('expense-amount');
+
+  if (incomeAmountInput) {
+    const isIncome = activeTransactionModalType === 'income';
+    incomeAmountInput.required = isIncome;
+    incomeAmountInput.disabled = !isIncome;
+  }
+
+  if (expenseTitleInput) {
+    const isExpense = activeTransactionModalType === 'expense';
+    expenseTitleInput.required = isExpense;
+    expenseTitleInput.disabled = !isExpense;
+  }
+
+  if (expenseAmountInput) {
+    const isExpense = activeTransactionModalType === 'expense';
+    expenseAmountInput.required = isExpense;
+    expenseAmountInput.disabled = !isExpense;
+  }
+
+  elements.expenseFields
+    .querySelectorAll('input, select, textarea, button')
+    .forEach((field) => {
+      field.disabled = activeTransactionModalType !== 'expense';
+    });
+
+  elements.incomeFields
+    .querySelectorAll('input, select, textarea, button')
+    .forEach((field) => {
+      field.disabled = activeTransactionModalType !== 'income';
+    });
+
+  if (elements.transactionModalTitle) {
+    elements.transactionModalTitle.textContent = activeTransactionModalType === 'income' ? 'Add Income' : 'Add Expense';
+  }
 }
 
-function toggleTransactionModal(show) {
+function getModalContent(modalElement) {
+  return modalElement?.querySelector('.modal-content') || null;
+}
+
+function positionModalNearAnchor(modalElement, anchorElement) {
+  const content = getModalContent(modalElement);
+
+  if (!modalElement || !content) {
+    return;
+  }
+
+  const fallbackAnchor = anchorElement
+    || (modalElement === elements.modal ? elements.openIncomeModalButton : elements.openGoalModalButton);
+
+  if (!fallbackAnchor) {
+    return;
+  }
+
+  const anchorRect = fallbackAnchor.getBoundingClientRect();
+  const margin = 10;
+  const gap = 8;
+  const contentRect = content.getBoundingClientRect();
+  const contentWidth = contentRect.width || 360;
+  const contentHeight = contentRect.height || 420;
+
+  let left = anchorRect.right - contentWidth;
+  left = Math.max(margin, Math.min(left, window.innerWidth - contentWidth - margin));
+
+  let top = anchorRect.bottom + gap;
+  if (top + contentHeight > window.innerHeight - margin) {
+    top = anchorRect.top - contentHeight - gap;
+  }
+  top = Math.max(margin, Math.min(top, window.innerHeight - contentHeight - margin));
+
+  content.style.left = `${Math.round(left)}px`;
+  content.style.top = `${Math.round(top)}px`;
+}
+
+function repositionAnchoredPopups() {
+  if (!elements.modal.hidden) {
+    positionModalNearAnchor(elements.modal, transactionModalAnchor);
+  }
+
+  if (!elements.goalModal.hidden) {
+    positionModalNearAnchor(elements.goalModal, goalModalAnchor);
+  }
+}
+
+function toggleTransactionModal(show, transactionType = 'income', anchorElement = null) {
   elements.modal.hidden = !show;
-  document.body.style.overflow = show ? 'hidden' : '';
+  transactionModalAnchor = show
+    ? (anchorElement || (transactionType === 'expense' ? elements.openExpenseModalButton : elements.openIncomeModalButton))
+    : null;
 
   if (show) {
-    setTransactionTab('income');
+    const targetType = transactionType === 'expense' ? 'expense' : 'income';
+    setTransactionTab(targetType);
+    requestAnimationFrame(() => positionModalNearAnchor(elements.modal, transactionModalAnchor));
+    if (targetType === 'expense') {
+      document.getElementById('expense-title').focus();
+      return;
+    }
     document.getElementById('amount').focus();
   }
 }
@@ -631,9 +841,10 @@ function subscribeToTransactions(userId) {
           category: data.category || 'General',
           type: data.type === 'income' ? 'income' : 'expense',
           amount: Number(data.amount) || 0,
-          notes: data.notes || ''
+          notes: data.notes || '',
+          createdAtDate: normalizeSnapshotDate(data.createdAt)
         };
-      });
+      }).sort((left, right) => (right.createdAtDate?.getTime() || 0) - (left.createdAtDate?.getTime() || 0));
 
       renderList();
       updateSummary();
@@ -718,7 +929,7 @@ function subscribeToGoals(userId) {
 }
 
 function getTransactionFormValues() {
-  const activeTab = document.querySelector('.transaction-tab.active')?.dataset.type || 'income';
+  const activeTab = activeTransactionModalType;
 
   if (activeTab === 'income') {
     const amount = parseFloat(document.getElementById('amount').value);
@@ -854,11 +1065,12 @@ function renderGoals() {
   }).join('');
 }
 
-function toggleGoalModal(show) {
+function toggleGoalModal(show, anchorElement = null) {
   elements.goalModal.hidden = !show;
-  document.body.style.overflow = show ? 'hidden' : '';
+  goalModalAnchor = show ? (anchorElement || elements.openGoalModalButton) : null;
 
   if (show) {
+    requestAnimationFrame(() => positionModalNearAnchor(elements.goalModal, goalModalAnchor));
     document.getElementById('goal-name').focus();
   }
 }
@@ -1013,15 +1225,15 @@ function closeSubPage() {
   setActiveTab(subPagePrevActiveTab || 'dashboard');
 }
 
-function openCreateGoalModal() {
+function openCreateGoalModal(anchorElement = elements.openGoalModalButton) {
   editingGoalId = null;
   elements.goalModalTitle.textContent = 'Add Savings Goal';
   elements.goalForm.reset();
   document.getElementById('goal-saved').value = 0;
-  toggleGoalModal(true);
+  toggleGoalModal(true, anchorElement);
 }
 
-function openEditGoalModal(index) {
+function openEditGoalModal(index, anchorElement = elements.openGoalModalButton) {
   const goal = goals[index];
 
   if (!goal) {
@@ -1033,7 +1245,7 @@ function openEditGoalModal(index) {
   document.getElementById('goal-saved').value = goal.saved;
   editingGoalId = goal.id;
   elements.goalModalTitle.textContent = 'Edit Savings Goal';
-  toggleGoalModal(true);
+  toggleGoalModal(true, anchorElement);
 }
 
 async function deleteGoal(index) {
@@ -1138,7 +1350,7 @@ async function handleGoalActions(event) {
     }
 
     if (button.dataset.action === 'edit-goal') {
-      openEditGoalModal(index);
+      openEditGoalModal(index, button);
       return;
     }
 
@@ -1715,15 +1927,54 @@ function setupProfilePhotoSyncListeners() {
 }
 
 function setupListeners() {
-  elements.transactionTabs.forEach((tab) => {
-    tab.addEventListener('click', () => setTransactionTab(tab.dataset.type));
+  const incomeAmountInput = document.getElementById('amount');
+  const expenseAmountInput = document.getElementById('expense-amount');
+
+  incomeAmountInput?.addEventListener('blur', () => {
+    formatMoneyInputOnBlur(incomeAmountInput);
   });
 
-  elements.openModalButton.addEventListener('click', () => toggleTransactionModal(true));
+  expenseAmountInput?.addEventListener('blur', () => {
+    formatMoneyInputOnBlur(expenseAmountInput);
+  });
+
+  if (elements.openIncomeModalButton) {
+    elements.openIncomeModalButton.addEventListener('click', (event) => {
+      toggleTransactionModal(true, 'income', event.currentTarget);
+    });
+  }
+
+  if (elements.openExpenseModalButton) {
+    elements.openExpenseModalButton.addEventListener('click', (event) => {
+      toggleTransactionModal(true, 'expense', event.currentTarget);
+    });
+  }
 
   elements.modal.addEventListener('click', (event) => {
     if (event.target.closest('[data-close]')) {
       toggleTransactionModal(false);
+    }
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!elements.modal.hidden) {
+      const transactionContent = getModalContent(elements.modal);
+      const clickedInsideTransaction = transactionContent?.contains(event.target);
+      const clickedTransactionAnchor = transactionModalAnchor?.contains(event.target);
+
+      if (!clickedInsideTransaction && !clickedTransactionAnchor) {
+        toggleTransactionModal(false);
+      }
+    }
+
+    if (!elements.goalModal.hidden) {
+      const goalContent = getModalContent(elements.goalModal);
+      const clickedInsideGoal = goalContent?.contains(event.target);
+      const clickedGoalAnchor = goalModalAnchor?.contains(event.target);
+
+      if (!clickedInsideGoal && !clickedGoalAnchor) {
+        toggleGoalModal(false);
+      }
     }
   });
 
@@ -1771,7 +2022,9 @@ function setupListeners() {
     elements.logoutButton.addEventListener('click', handleLogout);
   }
 
-  elements.openGoalModalButton.addEventListener('click', openCreateGoalModal);
+  elements.openGoalModalButton.addEventListener('click', (event) => {
+    openCreateGoalModal(event.currentTarget);
+  });
 
   elements.goalModal.addEventListener('click', (event) => {
     if (event.target.closest('[data-close]')) {
@@ -1826,10 +2079,14 @@ function setupListeners() {
       openSubPage(target.dataset.subpage, target.dataset.subpageLabel || 'Page');
     }
   });
+
+  window.addEventListener('resize', repositionAnchoredPopups);
+  window.addEventListener('scroll', repositionAnchoredPopups, true);
 }
 
 function init() {
   setActiveTab('dashboard', { skipAnimation: true });
+  setupAmountSteppers();
   renderGoals();
   setupListeners();
   setupProfilePhotoSyncListeners();
