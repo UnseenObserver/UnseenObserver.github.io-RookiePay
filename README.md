@@ -4,11 +4,19 @@ Basic budget tracker with Firebase Authentication and Firestore-backed transacti
 
 ## File layout
 
-- `index.html`: budget dashboard markup
+- `index.html`: entry redirect to login
 - `login.html`: login and sign-up markup
-- `assets/css/styles.css`: shared styling for both pages
-- `assets/js/app.js`: dashboard behavior and Firestore transaction logic
+- `dashboard.html`: main budget dashboard
+- `account.html`, `faq.html`, `terms.html`, `splitRatio.html`, `visuals.html`: settings/support subpages
+- `styles.css`: shared styling for all pages (single source of truth)
+- `assets/css/styles.css`: compatibility forwarder to `styles.css`
 - `assets/js/auth.js`: login, sign-up, and password reset behavior
+- `assets/js/dashboard.js`: dashboard behavior, transactions, goals, and subpage tabs
+- `assets/js/account.js`: profile and account updates
+- `assets/js/split-ratio.js`: split ratio configuration
+- `assets/js/visuals.js`: theme/animation preference UI
+- `assets/js/theme.js`: global theme application from user settings
+- `assets/js/presets.js`: built-in visual presets
 - `assets/js/firebase-config.js`: Firebase app initialization
 - `assets/js/cache-registration.js`: service worker registration
 - `service-worker.js`: offline caching for local static assets
@@ -16,8 +24,8 @@ Basic budget tracker with Firebase Authentication and Firestore-backed transacti
 ## What should work
 
 - `login.html` lets a user sign up, log in, and request a password reset.
-- `index.html` shows the authenticated user's transactions, totals, add form, delete, and clear-all.
-- `assets/css/styles.css` styles both the dashboard and auth page.
+- `dashboard.html` shows the authenticated user's transactions, totals, add form, delete, and clear-all.
+- `styles.css` styles auth, dashboard, and settings pages.
 
 ## Required Firebase setup
 

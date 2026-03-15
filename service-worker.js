@@ -1,17 +1,24 @@
-const STATIC_CACHE = 'budget-tracker-static-v5';
+const STATIC_CACHE = 'budget-tracker-static-v6';
 
 const STATIC_ASSETS = [
   './',
   './index.html',
   './dashboard.html',
   './splitRatio.html',
+  './account.html',
+  './faq.html',
+  './terms.html',
+  './visuals.html',
   './login.html',
   './styles.css',
   './assets/css/styles.css',
-  './assets/js/app.js',
   './assets/js/auth.js',
   './assets/js/dashboard.js',
+  './assets/js/account.js',
+  './assets/js/visuals.js',
   './assets/js/split-ratio.js',
+  './assets/js/theme.js',
+  './assets/js/presets.js',
   './assets/js/cache-registration.js',
   './assets/js/firebase-config.js'
 ];

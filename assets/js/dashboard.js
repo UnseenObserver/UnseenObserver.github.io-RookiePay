@@ -86,6 +86,15 @@ function formatCurrency(amount) {
   return `$${amount.toFixed(2)}`;
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
 function setGoalMessage(text = '', type = '') {
   const el = elements.goalsHeaderMessage;
   if (!el) return;
@@ -208,7 +217,7 @@ function updateBreakdown(balance) {
     : percentGroups.map((group) => `
       <li class="breakdown-item-row">
         <div>
-          <span class="breakdown-label">${group.label}</span>
+          <span class="breakdown-label">${escapeHtml(group.label)}</span>
           <span class="breakdown-amount">${formatCurrency(group.amount)}</span>
         </div>
         <span class="progress-text">${group.percent}%</span>
@@ -220,7 +229,7 @@ function updateBreakdown(balance) {
     : billGroups.map((group) => `
       <li class="breakdown-item-row">
         <div>
-          <span class="breakdown-label">${group.label}</span>
+          <span class="breakdown-label">${escapeHtml(group.label)}</span>
           <span class="breakdown-amount">${formatCurrency(group.amount)}</span>
         </div>
         <span class="progress-text"></span>
@@ -232,7 +241,7 @@ function updateBreakdown(balance) {
     : savingsGoalGroups.map((group) => `
       <li class="breakdown-item-row">
         <div>
-          <span class="breakdown-label">${group.label}</span>
+          <span class="breakdown-label">${escapeHtml(group.label)}</span>
           <span class="breakdown-amount">${formatCurrency(group.amount)}</span>
         </div>
         <span class="progress-text">${group.percent}%</span>
@@ -417,7 +426,10 @@ function populateExpenseCategoryDropdown() {
   const currentValue = select.value;
 
   select.innerHTML = allNames
-    .map((name) => `<option value="${name}">${name}</option>`)
+    .map((name) => {
+      const safeName = escapeHtml(name);
+      return `<option value="${safeName}">${safeName}</option>`;
+    })
     .join('') + '<option value="Other">Other</option>';
 
   if ([...select.options].some((opt) => opt.value === currentValue)) {
@@ -473,12 +485,12 @@ function renderList() {
   elements.list.innerHTML = transactions.map((transaction) => `
     <li class="transaction-item ${transaction.type}">
       <div class="transaction-info">
-        <span class="transaction-desc">${transaction.description}</span>
-        <span class="transaction-category">${transaction.category}</span>
+        <span class="transaction-desc">${escapeHtml(transaction.description)}</span>
+        <span class="transaction-category">${escapeHtml(transaction.category)}</span>
       </div>
       <div class="transaction-right">
         <span class="transaction-amount">${transaction.type === 'income' ? '+' : '-'}${formatCurrency(transaction.amount)}</span>
-        <button class="btn-delete" type="button" data-id="${transaction.id}" aria-label="Delete ${transaction.description}">✕</button>
+        <button class="btn-delete" type="button" data-id="${escapeHtml(transaction.id)}" aria-label="Delete ${escapeHtml(transaction.description)}">✕</button>
       </div>
     </li>
   `).join('');
@@ -801,7 +813,7 @@ function renderGoals() {
 
     return `
       <li>
-        <strong>${goal.name}:</strong> <strong class="goal-amount">${formatCurrency(goal.saved)} / ${formatCurrency(goal.amount)}</strong>
+        <strong>${escapeHtml(goal.name)}:</strong> <strong class="goal-amount">${formatCurrency(goal.saved)} / ${formatCurrency(goal.amount)}</strong>
         <div class="progress-bar">
           <div class="progress-fill ${percentage >= 100 ? 'complete' : ''}" style="width: ${percentage}%"></div>
         </div>
@@ -895,7 +907,8 @@ function openSubPage(url, label) {
   subPageTab.className = 'tab';
   subPageTab.setAttribute('role', 'tab');
   subPageTab.setAttribute('aria-selected', 'false');
-  subPageTab.innerHTML = `${label}<span class="tab-close-btn" aria-label="Close ${label}" title="Close">&#x2715;</span>`;
+  const safeLabel = escapeHtml(label);
+  subPageTab.innerHTML = `${safeLabel}<span class="tab-close-btn" aria-label="Close ${safeLabel}" title="Close">&#x2715;</span>`;
 
   subPageTab.addEventListener('click', (event) => {
     if (event.target.closest('.tab-close-btn')) {

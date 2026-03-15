@@ -18,10 +18,11 @@ const elements = {
 
 let currentUser = null;
 let selectedPresetId = null;
+const messageBaseClass = elements.message?.classList.contains('page-message') ? 'page-message' : 'inline-save-message';
 
 function setMessage(text = '', type = '') {
   elements.message.textContent = text;
-  elements.message.className = 'inline-save-message';
+  elements.message.className = messageBaseClass;
 
   if (type) {
     elements.message.classList.add(type);

@@ -32,7 +32,6 @@ const elements = {
   addPercentButton: document.getElementById('add-percent-category'),
   addGoalButton: document.getElementById('add-goal-category'),
   addBillButton: document.getElementById('add-bill-category'),
-  saveTopButton: document.getElementById('save-ratios-top'),
   saveBottomButton: document.getElementById('save-ratios-bottom')
 };
 
@@ -47,6 +46,15 @@ const UNSPECIFIED_CATEGORY_NAME = 'Unspecified';
 function asNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 function setMessage(text = '', type = '') {
@@ -163,10 +171,6 @@ function syncSavingsGoalAllocationsWithGoals() {
 function updateSaveButtonsState(total) {
   const canSave = total >= 0;
 
-  if (elements.saveTopButton) {
-    elements.saveTopButton.disabled = !canSave;
-  }
-
   if (elements.saveBottomButton) {
     elements.saveBottomButton.disabled = !canSave;
   }
@@ -267,7 +271,7 @@ function renderPercentCategories() {
     <div class="split-row" data-index="${index}">
       <div class="form-group">
         <label>Category</label>
-        <input type="text" data-role="percent-name" value="${category.name}" ${isUnspecifiedCategory(category) ? 'readonly' : ''} />
+        <input type="text" data-role="percent-name" value="${escapeHtml(category.name)}" ${isUnspecifiedCategory(category) ? 'readonly' : ''} />
       </div>
       <div class="form-group">
         <label>Percent (%)</label>
@@ -283,7 +287,7 @@ function renderBillCategories() {
     <div class="split-row" data-index="${index}">
       <div class="form-group">
         <label>Bill Category</label>
-        <input type="text" data-role="bill-name" value="${category.name}" />
+        <input type="text" data-role="bill-name" value="${escapeHtml(category.name)}" />
       </div>
       <div class="form-group">
         <label>Amount ($)</label>
@@ -300,7 +304,10 @@ function getAvailableGoalOptions(selectedGoalName = '') {
   }
 
   return availableSavingsGoals
-    .map((goal) => `<option value="${goal}" ${goal === selectedGoalName ? 'selected' : ''}>${goal}</option>`)
+    .map((goal) => {
+      const safeGoal = escapeHtml(goal);
+      return `<option value="${safeGoal}" ${goal === selectedGoalName ? 'selected' : ''}>${safeGoal}</option>`;
+    })
     .join('');
 }
 
