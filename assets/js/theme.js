@@ -1,6 +1,7 @@
 import { auth, db } from './firebase-config.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js';
-import { doc, getDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
+import { doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
+import { BUILT_IN_PRESETS } from './presets.js';
 
 const DEFAULT_THEME = {
   name: 'Default',
@@ -80,6 +81,28 @@ export function applyVisualTheme(theme) {
   root.style.setProperty('--app-surface-muted', activeTheme.surfaceMutedColor || DEFAULT_THEME.surfaceMutedColor);
   root.style.setProperty('--app-border', activeTheme.borderColor || DEFAULT_THEME.borderColor);
   root.style.setProperty('--app-card-text', activeTheme.cardTextColor || DEFAULT_THEME.cardTextColor);
+
+  try {
+    localStorage.setItem('mf_theme_vars', JSON.stringify({
+      '--app-bg': activeTheme.background,
+      '--app-accent': activeTheme.accent,
+      '--app-accent-hover': activeTheme.accentHover || activeTheme.accent,
+      '--app-accent-soft': activeTheme.accentSoft || toRgba(activeTheme.accent, 0.12),
+      '--app-accent-soft-strong': activeTheme.accentSoftStrong || toRgba(activeTheme.accent, 0.18),
+      '--app-accent-border': activeTheme.accentBorder || toRgba(activeTheme.accent, 0.35),
+      '--app-accent-shadow': activeTheme.accentShadow || toRgba(activeTheme.accent, 0.22),
+      '--app-text': activeTheme.textColor || DEFAULT_THEME.textColor,
+      '--app-heading': activeTheme.headingColor || DEFAULT_THEME.headingColor,
+      '--app-subtitle': activeTheme.subtitleColor || DEFAULT_THEME.subtitleColor,
+      '--app-muted': activeTheme.mutedColor || DEFAULT_THEME.mutedColor,
+      '--app-greeting': activeTheme.greetingColor || DEFAULT_THEME.greetingColor,
+      '--app-surface': activeTheme.surfaceColor || DEFAULT_THEME.surfaceColor,
+      '--app-surface-soft': activeTheme.surfaceSoftColor || DEFAULT_THEME.surfaceSoftColor,
+      '--app-surface-muted': activeTheme.surfaceMutedColor || DEFAULT_THEME.surfaceMutedColor,
+      '--app-border': activeTheme.borderColor || DEFAULT_THEME.borderColor,
+      '--app-card-text': activeTheme.cardTextColor || DEFAULT_THEME.cardTextColor
+    }));
+  } catch (e) {}
 }
 
 export function applyAnimationMode(mode) {
@@ -89,7 +112,7 @@ export function applyAnimationMode(mode) {
   document.body.classList.add(`motion-${animationMode}`);
 }
 
-async function applyVisualSettings(userId, settings) {
+function applyVisualSettings(settings) {
   const activePresetId = settings?.activePresetId;
   const animationMode = settings?.animationMode || DEFAULT_ANIMATION_MODE;
 
@@ -100,45 +123,14 @@ async function applyVisualSettings(userId, settings) {
     return;
   }
 
-  try {
-    const presetSnapshot = await getDoc(doc(db, 'users', userId, 'visuals', activePresetId));
+  const preset = BUILT_IN_PRESETS.find((p) => p.id === activePresetId);
 
-    if (!presetSnapshot.exists()) {
-      applyVisualTheme(DEFAULT_THEME);
-      return;
-    }
-
-    const preset = presetSnapshot.data();
-    const isDarkPreset = activePresetId === 'preset_darkmode' || /dark\s*mode/i.test(String(preset.name || ''));
-
-    if (preset.kind !== 'preset') {
-      applyVisualTheme(DEFAULT_THEME);
-      return;
-    }
-
-    applyVisualTheme({
-      name: preset.name,
-      background: preset.background,
-      accent: preset.accent,
-      accentHover: preset.accentHover,
-      accentSoft: preset.accentSoft,
-      accentSoftStrong: preset.accentSoftStrong,
-      accentBorder: preset.accentBorder,
-      accentShadow: preset.accentShadow,
-      textColor: preset.textColor || (isDarkPreset ? '#e5e7eb' : undefined),
-      headingColor: preset.headingColor || (isDarkPreset ? '#f8fafc' : undefined),
-      subtitleColor: preset.subtitleColor || (isDarkPreset ? '#cbd5e1' : undefined),
-      mutedColor: preset.mutedColor || (isDarkPreset ? '#cbd5e1' : undefined),
-      greetingColor: preset.greetingColor || (isDarkPreset ? '#e2e8f0' : undefined),
-      surfaceColor: preset.surfaceColor || (isDarkPreset ? '#172033' : undefined),
-      surfaceSoftColor: preset.surfaceSoftColor || (isDarkPreset ? '#1e293b' : undefined),
-      surfaceMutedColor: preset.surfaceMutedColor || (isDarkPreset ? '#1f2937' : undefined),
-      borderColor: preset.borderColor || (isDarkPreset ? 'rgba(148, 163, 184, 0.35)' : undefined),
-      cardTextColor: preset.cardTextColor || (isDarkPreset ? '#f8fafc' : undefined)
-    });
-  } catch {
+  if (!preset) {
     applyVisualTheme(DEFAULT_THEME);
+    return;
   }
+
+  applyVisualTheme(preset);
 }
 
 onAuthStateChanged(auth, (user) => {
@@ -148,6 +140,7 @@ onAuthStateChanged(auth, (user) => {
   }
 
   if (!user) {
+    try { localStorage.removeItem('mf_theme_vars'); } catch (e) {}
     applyVisualTheme(DEFAULT_THEME);
     applyAnimationMode(DEFAULT_ANIMATION_MODE);
     return;
@@ -157,7 +150,7 @@ onAuthStateChanged(auth, (user) => {
     doc(db, 'users', user.uid, 'visuals', 'settings'),
     (settingsSnapshot) => {
       const settings = settingsSnapshot.exists() ? settingsSnapshot.data() : null;
-      applyVisualSettings(user.uid, settings);
+      applyVisualSettings(settings);
     },
     () => {
       applyVisualTheme(DEFAULT_THEME);

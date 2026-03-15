@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <script>(function(){try{var v=JSON.parse(localStorage.getItem('mf_theme_vars')||'null');if(v){var r=document.documentElement;for(var k in v)r.style.setProperty(k,v[k]);}}catch(e){}})();</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MoneyFirst | Account</title>
   <link href="https://fonts.googleapis.com/css2?family=Margarine&display=swap" rel="stylesheet">
@@ -22,7 +23,7 @@
 
     <p class="page-message" id="page-message" aria-live="polite"></p>
 
-    <section class="form-section">
+    <section class="form-section profile-section">
       <h2>Your Profile</h2>
       <form id="account-form">
         <div class="form-row account-form-grid">
@@ -51,6 +52,7 @@
         </div>
 
         <div class="account-form-actions">
+          <span class="inline-save-message" id="account-message" aria-live="polite"></span>
           <button type="submit" class="btn-add" id="save-btn">Save Changes</button>
         </div>
       </form>
@@ -64,11 +66,8 @@
       </div>
     </section>
 
-    <section class="form-section">
-      <h2>Visual Preferences</h2>
+    <section class="form-section visuals-section">
       <p class="account-section-description">Choose your theme preset and animation speed, then save.</p>
-
-      <p class="page-message" id="visuals-message" aria-live="polite"></p>
 
       <div class="visuals-presets-grid" id="visuals-presets-grid"></div>
 
@@ -85,6 +84,7 @@
       </div>
 
       <div class="account-form-actions">
+        <span class="inline-save-message" id="visuals-message" aria-live="polite"></span>
         <button type="button" class="btn-add" id="visuals-save-btn">Save Visual Preferences</button>
       </div>
     </section>

@@ -624,6 +624,28 @@ body.embedded header {
   border-top: 4px solid transparent;
 }
 
+.inline-save-message {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.82rem;
+  font-style: italic;
+  align-self: center;
+}
+
+.inline-save-message:empty {
+  display: none;
+}
+
+.inline-save-message.success {
+  color: #16a34a;
+}
+
+.inline-save-message.error {
+  color: #dc2626;
+}
+
 .card-header {
   display: flex;
   justify-content: space-between;
@@ -886,6 +908,19 @@ body.embedded header {
   background: var(--app-surface);
 }
 
+.form-group input[type="number"]::-webkit-inner-spin-button,
+.form-group input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+  background: var(--app-surface-muted);
+  border-left: 1px solid var(--app-border);
+  cursor: pointer;
+}
+
+.form-group input[type="number"] {
+  -moz-appearance: auto;
+  appearance: auto;
+}
+
 .form-group textarea {
   padding: 9px 12px;
   border: 1.5px solid var(--app-border);
@@ -1099,7 +1134,7 @@ body.embedded header {
 }
 
 .faq-item {
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--app-border);
 }
 
 .faq-item:last-child {
@@ -1119,20 +1154,20 @@ body.embedded header {
   font-family: 'Montserrat', sans-serif;
   font-size: 0.95rem;
   font-weight: 600;
-  color: #1a1a2e;
+  color: var(--app-heading);
   cursor: pointer;
   transition: color 0.2s;
 }
 
 .faq-question:hover {
-  color: #4f46e5;
+  color: var(--app-accent);
 }
 
 .faq-icon {
   flex-shrink: 0;
   font-size: 1.25rem;
   font-weight: 400;
-  color: #4f46e5;
+  color: var(--app-accent);
   line-height: 1;
   transition: transform 0.2s;
 }
@@ -1140,7 +1175,7 @@ body.embedded header {
 .faq-answer {
   padding: 0 0 14px;
   font-size: 0.9rem;
-  color: #4b5563;
+  color: var(--app-text);
   line-height: 1.65;
 }
 
@@ -1155,13 +1190,13 @@ body.embedded header {
 
 .legal-effective {
   font-size: 0.82rem;
-  color: #9ca3af;
+  color: var(--app-muted);
   margin-bottom: 6px;
 }
 
 .legal-intro {
   font-size: 0.92rem;
-  color: #4b5563;
+  color: var(--app-text);
   line-height: 1.65;
   margin-bottom: 24px;
 }
@@ -1173,13 +1208,13 @@ body.embedded header {
 .legal-block h2 {
   font-size: 1rem;
   font-weight: 700;
-  color: #1a1a2e;
+  color: var(--app-heading);
   margin-bottom: 8px;
 }
 
 .legal-block p {
   font-size: 0.9rem;
-  color: #4b5563;
+  color: var(--app-text);
   line-height: 1.65;
   margin-bottom: 8px;
 }
@@ -1198,7 +1233,7 @@ body.embedded header {
 
 .legal-list li {
   font-size: 0.9rem;
-  color: #4b5563;
+  color: var(--app-text);
   line-height: 1.6;
 }
 
@@ -1300,9 +1335,29 @@ body.embedded header {
 }
 
 .account-form-actions {
+  position: relative;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   margin-top: 16px;
+}
+
+.visuals-section,
+.profile-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-section #account-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.visuals-section .account-form-actions,
+.profile-section .account-form-actions {
+  margin-top: auto;
+  padding-top: 16px;
 }
 
 .account-section-description {

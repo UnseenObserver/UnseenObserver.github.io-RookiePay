@@ -137,20 +137,50 @@ function updateBreakdown(balance) {
   }
 
   const usableBalance = Math.max(0, asNumber(balance));
-  const billGroups = (splitRatios.billCategories || []).map((category) => ({
+
+  // Gross income (sum of all income transactions, before expenses)
+  const grossIncome = transactions
+    .filter((t) => t.type === 'income')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  // Expenses grouped by category so each category can deduct its own spending
+  const expensesByCategory = {};
+  for (const t of transactions) {
+    if (t.type === 'expense') {
+      expensesByCategory[t.category] = (expensesByCategory[t.category] || 0) + t.amount;
+    }
+  }
+
+  const fixedBillAmounts = (splitRatios.billCategories || []).map((category) => ({
     label: category.name || 'Unnamed Bill',
-    amount: asNumber(category.amount)
+    fixed: asNumber(category.amount)
   }));
 
-  const billsTotal = billGroups.reduce((sum, group) => sum + group.amount, 0);
+  const billsTotal = fixedBillAmounts.reduce((sum, b) => sum + b.fixed, 0);
+
+  // Allocation base from gross income (not net) so each category absorbs only its own expenses
+  const grossAfterBills = Math.max(0, grossIncome - billsTotal);
+
+  // Net balance after bills still used for savings goal persistence (unchanged behaviour)
   const balanceAfterBills = Math.max(0, usableBalance - billsTotal);
 
   const percentGroups = (splitRatios.percentageCategories || []).map((category) => {
     const percent = asNumber(category.percent);
+    const grossAlloc = grossAfterBills * (percent / 100);
+    const spent = expensesByCategory[category.name] || 0;
     return {
       label: category.name || 'Unnamed Category',
-      amount: balanceAfterBills * (percent / 100),
+      amount: Math.max(0, grossAlloc - spent),
       percent
+    };
+  });
+
+  // Bill groups show remaining budget (fixed amount minus expenses tagged to that bill)
+  const billGroups = fixedBillAmounts.map((b) => {
+    const spent = expensesByCategory[b.label] || 0;
+    return {
+      label: b.label,
+      amount: Math.max(0, b.fixed - spent)
     };
   });
 
@@ -168,7 +198,7 @@ function updateBreakdown(balance) {
 
   const savingsGoalGroups = allSavingsGoalAllocations.filter((group) => group.amount > 0);
 
-  if (percentGroups.length === 0 && billGroups.length === 0) {
+  if (percentGroups.length === 0 && fixedBillAmounts.length === 0) {
     elements.breakdownList.innerHTML = '<li class="empty-state">No split ratio groups configured yet.</li>';
     return;
   }

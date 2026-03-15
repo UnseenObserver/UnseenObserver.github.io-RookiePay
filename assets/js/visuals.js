@@ -6,38 +6,8 @@ import {
   serverTimestamp,
   setDoc
 } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
-import { applyAnimationMode, applyVisualTheme, buildThemeFromAccent } from './theme.js';
-
-function createBuiltInPreset(id, name, background, accent, extra = {}) {
-  return {
-    id,
-    name,
-    kind: 'preset',
-    source: 'built-in',
-    ...buildThemeFromAccent(background, accent, name),
-    ...extra
-  };
-}
-
-// Developer note: add new presets here using createBuiltInPreset(...)
-const BUILT_IN_PRESETS = [
-  createBuiltInPreset('preset_classic', 'Classic Indigo', 'radial-gradient(circle at top, #f7f5ff 0%, #e5f4ff 45%, #f6fff7 100%)', '#4f46e5'),
-  createBuiltInPreset('preset_forest', 'Forest Calm', 'radial-gradient(circle at top, #f3fff8 0%, #dcfce7 42%, #eefbf2 100%)', '#0f766e'),
-  createBuiltInPreset('preset_sunset', 'Sunset Warm', 'radial-gradient(circle at top, #fff7ed 0%, #ffedd5 48%, #fef3c7 100%)', '#ea580c'),
-  createBuiltInPreset('preset_midnight', 'Midnight Blue', 'radial-gradient(circle at top, #ecf3ff 0%, #dbeafe 45%, #e0e7ff 100%)', '#1d4ed8'),
-  createBuiltInPreset('preset_darkmode', 'Dark Mode', 'radial-gradient(circle at top, #121826 0%, #0f172a 48%, #111827 100%)', '#8b5cf6', {
-    textColor: '#e5e7eb',
-    headingColor: '#f8fafc',
-    subtitleColor: '#cbd5e1',
-    mutedColor: '#cbd5e1',
-    greetingColor: '#e2e8f0',
-    surfaceColor: '#172033',
-    surfaceSoftColor: '#1e293b',
-    surfaceMutedColor: '#1f2937',
-    borderColor: 'rgba(148, 163, 184, 0.35)',
-    cardTextColor: '#f8fafc'
-  })
-];
+import { applyAnimationMode, applyVisualTheme } from './theme.js';
+import { BUILT_IN_PRESETS } from './presets.js';
 
 const elements = {
   message: document.getElementById('visuals-message'),
@@ -47,12 +17,11 @@ const elements = {
 };
 
 let currentUser = null;
-let presets = [];
 let selectedPresetId = null;
 
 function setMessage(text = '', type = '') {
   elements.message.textContent = text;
-  elements.message.className = 'page-message';
+  elements.message.className = 'inline-save-message';
 
   if (type) {
     elements.message.classList.add(type);
@@ -60,12 +29,12 @@ function setMessage(text = '', type = '') {
 }
 
 function renderPresetCards() {
-  if (presets.length === 0) {
+  if (BUILT_IN_PRESETS.length === 0) {
     elements.presetsGrid.innerHTML = '<p class="visuals-empty">No presets found yet.</p>';
     return;
   }
 
-  elements.presetsGrid.innerHTML = presets
+  elements.presetsGrid.innerHTML = BUILT_IN_PRESETS
     .map((preset) => {
       const isSelected = preset.id === selectedPresetId;
 
@@ -85,37 +54,7 @@ function renderPresetCards() {
     .join('');
 }
 
-async function ensureSeedPresets(userId) {
-  const writes = BUILT_IN_PRESETS.map((preset) => {
-    const presetRef = doc(db, 'users', userId, 'visuals', preset.id);
-
-    return setDoc(presetRef, {
-      kind: 'preset',
-      source: preset.source,
-      name: preset.name,
-      background: preset.background,
-      accent: preset.accent,
-      accentHover: preset.accentHover,
-      accentSoft: preset.accentSoft,
-      accentSoftStrong: preset.accentSoftStrong,
-      accentBorder: preset.accentBorder,
-      accentShadow: preset.accentShadow,
-      textColor: preset.textColor || '#333333',
-      headingColor: preset.headingColor || '#1a1a2e',
-      subtitleColor: preset.subtitleColor || '#666666',
-      mutedColor: preset.mutedColor || '#4b5563',
-      greetingColor: preset.greetingColor || '#374151',
-      surfaceColor: preset.surfaceColor || '#ffffff',
-      surfaceSoftColor: preset.surfaceSoftColor || '#f8fafc',
-      surfaceMutedColor: preset.surfaceMutedColor || '#f8f9fa',
-      borderColor: preset.borderColor || 'rgba(0, 0, 0, 0.12)',
-      cardTextColor: preset.cardTextColor || '#1a1a2e',
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-  });
-
-  await Promise.all(writes);
-
+async function ensureSettingsDoc(userId) {
   const settingsRef = doc(db, 'users', userId, 'visuals', 'settings');
   const settingsSnapshot = await getDoc(settingsRef);
 
@@ -132,25 +71,17 @@ async function ensureSeedPresets(userId) {
 async function loadVisualPreferences(userId) {
   setMessage('Loading visual preferences…');
 
-  await ensureSeedPresets(userId);
-
-  const presetSnapshots = await Promise.all(
-    BUILT_IN_PRESETS.map((preset) => getDoc(doc(db, 'users', userId, 'visuals', preset.id)))
-  );
-
-  presets = presetSnapshots
-    .filter((snapshot) => snapshot.exists())
-    .map((snapshot) => ({ id: snapshot.id, ...snapshot.data() }));
+  await ensureSettingsDoc(userId);
 
   const settingsSnapshot = await getDoc(doc(db, 'users', userId, 'visuals', 'settings'));
   const settings = settingsSnapshot.exists() ? settingsSnapshot.data() : {};
 
-  selectedPresetId = settings.activePresetId || presets[0]?.id || null;
+  selectedPresetId = settings.activePresetId || BUILT_IN_PRESETS[0]?.id || null;
   elements.animationMode.value = settings.animationMode || 'normal';
 
   renderPresetCards();
 
-  const activePreset = presets.find((preset) => preset.id === selectedPresetId);
+  const activePreset = BUILT_IN_PRESETS.find((preset) => preset.id === selectedPresetId);
   if (activePreset) {
     applyVisualTheme(activePreset);
   }
@@ -173,7 +104,7 @@ async function savePreferences() {
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    const activePreset = presets.find((preset) => preset.id === selectedPresetId);
+    const activePreset = BUILT_IN_PRESETS.find((preset) => preset.id === selectedPresetId);
     if (activePreset) {
       applyVisualTheme(activePreset);
     }
@@ -196,7 +127,7 @@ function onPresetSelected(event) {
   selectedPresetId = card.dataset.presetId;
   renderPresetCards();
 
-  const activePreset = presets.find((preset) => preset.id === selectedPresetId);
+  const activePreset = BUILT_IN_PRESETS.find((preset) => preset.id === selectedPresetId);
   if (activePreset) {
     applyVisualTheme(activePreset);
   }

@@ -20,10 +20,30 @@ const elements = {
   emailInput: document.getElementById('email'),
   saveButton: document.getElementById('save-btn'),
   resetPasswordButton: document.getElementById('reset-password-btn'),
-  pageMessage: document.getElementById('page-message')
+  pageMessage: document.getElementById('page-message'),
+  accountMessage: document.getElementById('account-message')
 };
 
 let currentUser = null;
+let accountMessageTimeoutId = null;
+
+function setAccountMessage(text = '', type = '') {
+  const el = elements.accountMessage;
+  if (!el) return;
+  if (accountMessageTimeoutId) {
+    clearTimeout(accountMessageTimeoutId);
+    accountMessageTimeoutId = null;
+  }
+  el.textContent = text;
+  el.className = 'inline-save-message' + (type ? ` ${type}` : '');
+  if (text && type === 'success') {
+    accountMessageTimeoutId = setTimeout(() => {
+      el.textContent = '';
+      el.className = 'inline-save-message';
+      accountMessageTimeoutId = null;
+    }, 3000);
+  }
+}
 
 function setPageMessage(text = '', type = '') {
   elements.pageMessage.textContent = text;
@@ -124,18 +144,19 @@ async function handleSave(event) {
       updatedAt: serverTimestamp()
     });
 
-    setPageMessage('Account updated successfully.', 'success');
+    setPageMessage('');
+    setAccountMessage('Account updated successfully.', 'success');
   } catch (error) {
     console.error('Failed to save account changes:', error);
 
     if (error.code === 'auth/requires-recent-login') {
-      setPageMessage('Changing your email requires a recent sign-in. Please log out, sign back in, and try again.', 'error');
+      setAccountMessage('Changing your email requires a recent sign-in. Please log out, sign back in, and try again.', 'error');
     } else if (error.code === 'auth/email-already-in-use') {
-      setPageMessage('That email address is already associated with another account.', 'error');
+      setAccountMessage('That email address is already associated with another account.', 'error');
     } else if (error.code === 'auth/invalid-email') {
-      setPageMessage('Please enter a valid email address.', 'error');
+      setAccountMessage('Please enter a valid email address.', 'error');
     } else {
-      setPageMessage('Could not save changes. Please try again.', 'error');
+      setAccountMessage('Could not save changes. Please try again.', 'error');
     }
   } finally {
     setFormDisabled(false);
